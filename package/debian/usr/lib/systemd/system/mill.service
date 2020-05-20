@@ -1,0 +1,14 @@
+[Unit]
+Description=mill
+
+[Service]
+Type=simple
+ExecStart=/opt/thingsplex/mill/mill
+User=mill
+WorkingDirectory=/opt/thingsplex/mill
+Restart=always
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

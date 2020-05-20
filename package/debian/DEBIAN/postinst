@@ -1,0 +1,31 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]
+then
+  groupadd -r thingsplex || true
+  groupadd -r mill || true
+
+  useradd -r -N -M -d / -s /bin/false -g thingsplex mill || true
+
+  chown -R mill:thingsplex /var/log/thingsplex/mill/ || true
+  chown -R mill:mill /opt/thingsplex/mill/ || true
+fi
+
+deb-systemd-helper unmask mill.service >/dev/null || true
+
+if deb-systemd-helper --quiet was-enabled mill.service; then
+  systemctl enable mill.service || true
+else
+  deb-systemd-helper update-state mill.service >/dev/null || true
+fi
+
+if [ -d /run/systemd/system ]; then
+  systemctl --system daemon-reload >/dev/null || true
+
+  if [ -n "$2" ]; then
+    deb-systemd-invoke try-restart mill.service >/dev/null || true
+  else
+    deb-systemd-invoke start mill.service >/dev/null || true
+  fi
+fi
