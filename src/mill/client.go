@@ -2,6 +2,7 @@ package mill
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -47,6 +48,7 @@ type Config struct {
 		AccessKey   string `json:"access_key"`
 		SecretToken string `json:"secret_token"`
 	} `json:"props"`
+
 	Data struct {
 		AuthorizationCode string `json:"authorization_code"`
 		AccessToken       string `json:"access_token"`
@@ -61,6 +63,7 @@ type Client struct {
 	httpResponse *http.Response
 	Dc           *DeviceCollection
 	Rc           *RoomCollection
+	Hc           *HomeCollection
 }
 
 // DeviceCollection hold all devices from mill account
@@ -74,6 +77,12 @@ type DeviceCollection struct {
 type RoomCollection struct {
 	Body struct {
 		Rooms []*Room `json:"roomList"`
+	}
+}
+
+type HomeCollection struct {
+	Body struct {
+		Homes []*Home `json:"homeList"`
 	}
 }
 
@@ -118,6 +127,22 @@ type Room struct {
 	isOffline            *int32 `json:isOffline"`
 }
 
+type Home struct {
+	HomeName         string      `json:"homeName"`
+	IsHoliday        int         `json:"isHoliday"`
+	HolidayStartTime int         `json:"holidayStartTime"`
+	TimeZone         string      `json:"timeZone"`
+	ModeMinute       int         `json:"modeMinute"`
+	ModeStartTime    int64       `json:"modeStartTime"`
+	HolidayTemp      int         `json:"holidayTemp"`
+	ModeHour         int         `json:"modeHour"`
+	CurrentMode      int         `json:"currentMode"`
+	HolidayEndTime   int         `json:"holidayEndTime"`
+	HomeType         interface{} `json:"homeType"`
+	HomeID           int64       `json:"homeId"`
+	ProgramID        int64       `json:"programId"`
+}
+
 // GetAuth sends curl request to get authorization_code
 func (config *Config) GetAuth(accessKey string, secretToken string) string {
 	req, err := http.NewRequest("POST", authURL, nil)
@@ -134,6 +159,7 @@ func (config *Config) GetAuth(accessKey string, secretToken string) string {
 		// handle err
 		log.Debug("do error")
 	}
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		// handle err
@@ -145,11 +171,12 @@ func (config *Config) GetAuth(accessKey string, secretToken string) string {
 		// handle err
 		log.Debug("json error")
 	}
+
 	defer resp.Body.Close()
 	return conf.Data.AuthorizationCode
 }
 
-// GetAccesAndRefresh sends curl request to get access_token and refresh_token, as well as expireTime and refresh_expireTime
+// GetAccessAndRefresh sends curl request to get access_token and refresh_token, as well as expireTime and refresh_expireTime
 func (config *Config) GetAccessAndRefresh(authorizationCode string, password string, username string) (string, string, int64, int64) {
 	url := applyAccessTokenURL + "?password=" + password + "&username=" + username
 	req, err := http.NewRequest("POST", url, nil)
@@ -169,16 +196,62 @@ func (config *Config) GetAccessAndRefresh(authorizationCode string, password str
 		// handle err
 		log.Debug("read error")
 	}
+
 	conf := Config{}
 	jsonErr := json.Unmarshal(body, &conf)
 	if jsonErr != nil {
 		// handle err
 		log.Debug("json error")
 	}
+
 	accessToken := conf.Data.AccessToken
 	refreshToken := conf.Data.RefreshToken
 	expireTime := conf.Data.ExpireTime
 	refreshExpireTime := conf.Data.RefreshExpireTime
+
 	defer resp.Body.Close()
 	return accessToken, refreshToken, expireTime, refreshExpireTime
+}
+
+// Reading json does not work
+func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
+	req, err := http.NewRequest("POST", selectHomeListURL, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Access_token", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// handle err
+	}
+
+	log.Debug(resp.Body)
+
+	if err = processHTTPResponse(resp, err, c.Hc); err != nil {
+		return nil, err
+	}
+
+	return c.Hc, nil
+}
+
+// Unmarshall received data into holder struct
+func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {
+	defer resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	// check http return code
+	if resp.StatusCode != 200 {
+		//bytes, _ := ioutil.ReadAll(resp.Body)
+		log.Debug("Bad HTTP return code ", resp.StatusCode)
+		return fmt.Errorf("Bad HTTP return code %d", resp.StatusCode)
+	}
+
+	// Unmarshall response into given struct
+	if err = json.NewDecoder(resp.Body).Decode(holder); err != nil {
+		return err
+	}
+	return nil
 }

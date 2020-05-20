@@ -69,17 +69,17 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		}
 
 	case model.ServiceName:
+		config := mill.Config{}
+		client := mill.Client{}
+
 		log.Debug("New payload type ", newMsg.Payload.Type)
 		adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1"}
 		switch newMsg.Payload.Type {
 		case "cmd.auth.login":
-			config := mill.Config{}
-			props := config.Props
-			props.Username = newMsg.Payload.Properties["username"]
-			props.Password = newMsg.Payload.Properties["password"]
-			props.AccessKey = newMsg.Payload.Properties["access_key"]
-			props.SecretToken = newMsg.Payload.Properties["secret_token"]
-			data := config.Data
+			fc.configs.Username = newMsg.Payload.Properties["username"]
+			fc.configs.Password = newMsg.Payload.Properties["password"]
+			fc.configs.AccessKey = newMsg.Payload.Properties["access_key"]
+			fc.configs.SecretToken = newMsg.Payload.Properties["secret_token"]
 
 			status := model.AuthStatus{
 				Status:    "",
@@ -87,18 +87,18 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				ErrorCode: "",
 			}
 
-			if props.Username != "" && props.Password != "" && props.AccessKey != "" && props.SecretToken != "" {
+			if fc.configs.Username != "" && fc.configs.Password != "" && fc.configs.AccessKey != "" && fc.configs.SecretToken != "" {
 				// We now have username, password, accessKey and secretToken.
 				// Send /share/applyAuthCode api request to get authorization_code
-				data.AuthorizationCode = config.GetAuth(props.AccessKey, props.SecretToken)
-
+				fc.configs.AuthorizationCode = config.GetAuth(fc.configs.AccessKey, fc.configs.SecretToken)
+				log.Debug("Authorization code: ", fc.configs.AuthorizationCode)
 			} else {
 				status.Status = "ERROR"
 				status.ErrorText = "Empty username or password or access_key or secret_token"
 				log.Debug(status.ErrorText)
 			}
 
-			if data.AuthorizationCode == "" {
+			if fc.configs.AuthorizationCode == "" {
 				status.Status = model.AuthStateNotAuthenticated
 				log.Debug("No authorization code received")
 			} else {
@@ -116,33 +116,11 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				break
 			}
 
-			data.AccessToken, data.RefreshToken, data.ExpireTime, data.RefreshExpireTime = config.GetAccessAndRefresh(data.AuthorizationCode, props.Password, props.Username)
+			fc.configs.AccessToken, fc.configs.RefreshToken, fc.configs.ExpireTime, fc.configs.RefreshExpireTime = config.GetAccessAndRefresh(fc.configs.AuthorizationCode, fc.configs.Password, fc.configs.Username)
 
-		case "cmd.auth.set_tokens":
-			authReq := model.SetTokens{}
-			err := newMsg.Payload.GetObjectValue(&authReq)
-			if err != nil {
-				log.Error("Incorrect login message ")
-				return
-			}
-			status := model.AuthStatus{
-				Status:    model.AuthStateAuthenticated,
-				ErrorText: "",
-				ErrorCode: "",
-			}
-			if authReq.AccessToken != "" && authReq.RefreshToken != "" {
-				// TODO: This is an example . Add your logic here or remove
-
-			} else {
-				status.Status = "ERROR"
-				status.ErrorText = "Empty username or password"
-			}
-			fc.appLifecycle.SetAuthState(model.AuthStateAuthenticated)
-			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, status, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				// if response topic is not set , sending back to default application event topic
-				fc.mqt.Publish(adr, msg)
-			}
+		case "cmd.network.get_all_nodes":
+			// This does not work
+			log.Debug(client.GetHomeList(fc.configs.AccessToken))
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
@@ -248,8 +226,6 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.mqt.Publish(adr, msg)
 			}
 
-		case "cmd.network.get_all_nodes":
-			// TODO: This is an example . Add your logic here or remove
 		case "cmd.thing.get_inclusion_report":
 			//nodeId , _ := newMsg.Payload.GetStringValue()
 			// TODO: This is an example . Add your logic here or remove

@@ -31,7 +31,7 @@ func main() {
 
 	utils.SetupLog(configs.LogFile, configs.LogLevel, configs.LogFormat)
 	log.Info("--------------Starting mill----------------")
-	log.Info("Work directory : ",configs.WorkDir)
+	log.Info("Work directory : ", configs.WorkDir)
 	appLifecycle.PublishEvent(model.EventConfiguring, "main", nil)
 
 	mqtt := fimpgo.NewMqttTransport(configs.MqttServerURI, configs.MqttClientIdPrefix, configs.MqttUsername, configs.MqttPassword, true, 1, 1)
@@ -40,7 +40,7 @@ func main() {
 	responder.RegisterResource(model.GetDiscoveryResource())
 	responder.Start()
 
-	fimpRouter := router.NewFromFimpRouter(mqtt,appLifecycle,configs)
+	fimpRouter := router.NewFromFimpRouter(mqtt, appLifecycle, configs)
 	fimpRouter.Start()
 
 	//------------------ Sample code --------------------------------------
@@ -53,7 +53,7 @@ func main() {
 	} else {
 		log.Info("Connected")
 	}
-	appLifecycle.SetAppState(model.AppStateRunning,nil)
+	appLifecycle.SetAppState(model.AppStateRunning, nil)
 	//------------------ Sample code --------------------------------------
 
 	for {
@@ -65,7 +65,7 @@ func main() {
 		//	appLifecycle.WaitForState(model.StateConfiguring,"main")
 		//}
 		//TODO: Add logic here
-		appLifecycle.WaitForState(model.AppStateNotConfigured,"main")
+		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
 	}
 
 	mqtt.Stop()
