@@ -49,6 +49,10 @@ type Config struct {
 	} `json:"props"`
 	Data struct {
 		AuthorizationCode string `json:"authorization_code"`
+		AccessToken       string `json:"access_token"`
+		RefreshToken      string `json:"refresh_token"`
+		ExpireTime        int64  `json:"expireTime"`
+		RefreshExpireTime int64  `json:"refresh_expireTime"`
 	} `json:"data"`
 }
 
@@ -114,7 +118,7 @@ type Room struct {
 	isOffline            *int32 `json:isOffline"`
 }
 
-// GetAuth send curl request to get authorization_code
+// GetAuth sends curl request to get authorization_code
 func (config *Config) GetAuth(accessKey string, secretToken string) string {
 	req, err := http.NewRequest("POST", authURL, nil)
 	if err != nil {
@@ -145,61 +149,36 @@ func (config *Config) GetAuth(accessKey string, secretToken string) string {
 	return conf.Data.AuthorizationCode
 }
 
-// send curl request to get authorization_code
-// func getAuth(config Config) (*Client, error) {
-// 	req, err := http.NewRequest("POST", authURL, nil)
-// 	if err != nil {
-// 		// handle err
-// 	}
-// 	req.Header.Set("Accept", "*/*")
-// 	req.Header.Set("Access_key", config.AccessKey)
-// 	req.Header.Set("Secret_token", config.SecretToken)
+// GetAccesAndRefresh sends curl request to get access_token and refresh_token, as well as expireTime and refresh_expireTime
+func (config *Config) GetAccessAndRefresh(authorizationCode string, password string, username string) (string, string, int64, int64) {
+	url := applyAccessTokenURL + "?password=" + password + "&username=" + username
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Authorization_code", authorizationCode)
 
-// 	resp, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		// handle err
-// 	}
-// 	// config.AuthorizationCode = resp.Body.data["authorization_code"]
-// 	log.Debug("authorizationCode: %s", config.AuthorizationCode)
-// 	defer resp.Body.Close()
-// 	return nil
-// }
-
-// // send curl request to get access_token, refresh_token and expire's
-// func getAccessTokenAndRefreshToken(config Config) (*Client, error) {
-// 	req, err := http.NewRequest("POST", applyAccessTokenURL+"?password="+config.Password+"&username="+config.Username, nil)
-// 	if err != nil {
-// 		// handle err
-// 	}
-// 	req.Header.Set("Accept", "*/*")
-// 	req.Header.Set("Authorization_code", config.AuthorizationCode)
-
-// 	resp, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		// handle err
-// 	}
-// 	config.AccessToken = resp.Body.data.access_token
-// 	config.RefreshToken = resp.Body.data.refresh_token
-// 	config.ExpireTime = resp.Body.data.expireTime
-// 	config.RefreshExpireTime = resp.Body.data.refresh_expireTime
-// 	defer resp.Body.Close()
-// }
-
-// // send curl request to refresh access_token, refresh_token and expire's
-// func refreshTokens(config Config) (*Client, error) {
-// 	req, err := http.NewRequest("POST", refreshURL+"?refreshtoken"+config.RefreshToken, nil)
-// 	if err != nil {
-// 		// handle err
-// 	}
-// 	req.Header.Set("Accept", "*/*")
-
-// 	resp, err := http.DefaultClient.Do(req)
-// 	if err != nil {
-// 		// handle err
-// 	}
-// 	config.AccessToken = resp.Body.data.access_token
-// 	config.RefreshToken = resp.Body.data.refresh_token
-// 	config.ExpireTime = resp.Body.data.expireTime
-// 	config.RefreshExpireTime = resp.Body.data.refresh_expireTime
-// 	defer resp.Body.Close()
-// }
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// handle err
+		log.Debug("do error")
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		// handle err
+		log.Debug("read error")
+	}
+	conf := Config{}
+	jsonErr := json.Unmarshal(body, &conf)
+	if jsonErr != nil {
+		// handle err
+		log.Debug("json error")
+	}
+	accessToken := conf.Data.AccessToken
+	refreshToken := conf.Data.RefreshToken
+	expireTime := conf.Data.ExpireTime
+	refreshExpireTime := conf.Data.RefreshExpireTime
+	defer resp.Body.Close()
+	return accessToken, refreshToken, expireTime, refreshExpireTime
+}

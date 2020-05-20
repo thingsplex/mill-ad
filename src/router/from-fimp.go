@@ -12,7 +12,6 @@ import (
 	"github.com/thingsplex/mill/model"
 )
 
-// FromFimpRouter random comment
 type FromFimpRouter struct {
 	inboundMsgCh fimpgo.MessageCh
 	mqt          *fimpgo.MqttTransport
@@ -21,24 +20,12 @@ type FromFimpRouter struct {
 	configs      *model.Configs
 }
 
-// type Authorization struct {
-// 	ErrorCode  int    `json:"errorCode"`
-// 	Message    string `json:"message"`
-// 	StatusCode int    `json:"statusCode"`
-// 	Success    bool   `json:"success"`
-// 	Data       struct {
-// 		AuthorizationCode string `json:"authorization_code"`
-// 	} `json:"data"`
-// }
-
-// NewFromFimpRouter random comment
 func NewFromFimpRouter(mqt *fimpgo.MqttTransport, appLifecycle *model.Lifecycle, configs *model.Configs) *FromFimpRouter {
 	fc := FromFimpRouter{inboundMsgCh: make(fimpgo.MessageCh, 5), mqt: mqt, appLifecycle: appLifecycle, configs: configs}
 	fc.mqt.RegisterChannel("ch1", fc.inboundMsgCh)
 	return &fc
 }
 
-// Start random comment
 func (fc *FromFimpRouter) Start() {
 
 	// TODO: Choose either adapter or app topic
@@ -72,23 +59,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			// TODO: This is example . Add your logic here or remove
 		case "cmd.lvl.set":
 			// TODO: This is an example . Add your logic here or remove
-		// 	}
 		case "out_bin_switch":
 			// val, _ := newMsg.Payload.Val
-
 			log.Debug("Sending switch")
 			switch newMsg.Payload.Type {
 			case "cmd.binary.set":
-				// if val {
-				// 	// need access token, deviceID, holdtemp
-				// 	// val = 1
-				// 	// send deviceControlForOpenApi shell command
-
-				// } else {
-				// 	// need access token, deviceID, holdtemp
-				// 	// val = 0
-				// 	// send deviceControlForOpenApi shell command
-				// }
+				// TODO: This is an example. Add your logic here or remove
 			}
 		}
 
@@ -99,11 +75,11 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		case "cmd.auth.login":
 			config := mill.Config{}
 			props := config.Props
-			// props := mill.Config{}.Props
 			props.Username = newMsg.Payload.Properties["username"]
 			props.Password = newMsg.Payload.Properties["password"]
 			props.AccessKey = newMsg.Payload.Properties["access_key"]
 			props.SecretToken = newMsg.Payload.Properties["secret_token"]
+			data := config.Data
 
 			status := model.AuthStatus{
 				Status:    "",
@@ -114,18 +90,17 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			if props.Username != "" && props.Password != "" && props.AccessKey != "" && props.SecretToken != "" {
 				// We now have username, password, accessKey and secretToken.
 				// Send /share/applyAuthCode api request to get authorization_code
-				config.Data.AuthorizationCode = config.GetAuth(props.AccessKey, props.SecretToken)
-				log.Debug(config.Data.AuthorizationCode)
+				data.AuthorizationCode = config.GetAuth(props.AccessKey, props.SecretToken)
 
 			} else {
 				status.Status = "ERROR"
 				status.ErrorText = "Empty username or password or access_key or secret_token"
-				log.Debug("Something is empty")
+				log.Debug(status.ErrorText)
 			}
 
-			if config.Data.AuthorizationCode == "" {
+			if data.AuthorizationCode == "" {
 				status.Status = model.AuthStateNotAuthenticated
-				log.Debug(" IS == '' ")
+				log.Debug("No authorization code received")
 			} else {
 				status.Status = model.AuthStateAuthenticated
 			}
@@ -135,6 +110,13 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
 			}
+
+			// If authorization gode is not received we exit the case. Else we continue to get access_token and refresh_token.
+			if status.Status != model.AuthStateAuthenticated {
+				break
+			}
+
+			data.AccessToken, data.RefreshToken, data.ExpireTime, data.RefreshExpireTime = config.GetAccessAndRefresh(data.AuthorizationCode, props.Password, props.Username)
 
 		case "cmd.auth.set_tokens":
 			authReq := model.SetTokens{}
