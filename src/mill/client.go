@@ -73,17 +73,16 @@ type DeviceCollection struct {
 	}
 }
 
-// RoomCollection hold all rooms from mill account
 type RoomCollection struct {
-	Body struct {
+	Data struct {
 		Rooms []*Room `json:"roomList"`
-	}
+	} `json:"data"`
 }
 
 type HomeCollection struct {
-	Body struct {
+	Data struct {
 		Homes []*Home `json:"homeList"`
-	}
+	} `json:"data"`
 }
 
 // Device is a mill heater
@@ -103,30 +102,6 @@ type Device struct {
 	currentTemp          *int32 `json:"currentTemp"`
 }
 
-// Room is a room containing one or more mill heaters
-type Room struct {
-	maxTemperature       *int32 `json:"maxTemperature"`
-	independentDeviceIds *int32 `json:"independentDeviceIds"`
-	maxTemperatureMsg    string `json:"maxTemperatureMsg"`
-	changeTemperature    *int32 `json:"changeTemperature"`
-	controlSource        string `json:"controlSource"`
-	comfortTemp          *int32 `json:"comfortTemp"`
-	roomProgram          string `json:"roomProgram"`
-	awayTemp             *int32 `json:"awayTemp"`
-	avgTemp              *int32 `json:"avgTemp"`
-	changeTemperatureMsg string `json:"changeTemperatureMsg"`
-	roomId               *int32 `json:"roomId"`
-	roomName             string `json:"roomName"`
-	currentMode          *int32 `json:"currentMode"`
-	heatStatus           bool   `json:"heatStatus"`
-	offLineDeviceNum     *int32 `json:"offLineDeviceNum"`
-	total                *int32 `json:"total"`
-	independentCount     *int32 `json:independentCount"`
-	sleepTemp            *int32 `json:sleepTemp"`
-	onlineDeviceNum      *int32 `json:onlineDeviceNum"`
-	isOffline            *int32 `json:isOffline"`
-}
-
 type Home struct {
 	HomeName         string      `json:"homeName"`
 	IsHoliday        int         `json:"isHoliday"`
@@ -141,6 +116,29 @@ type Home struct {
 	HomeType         interface{} `json:"homeType"`
 	HomeID           int64       `json:"homeId"`
 	ProgramID        int64       `json:"programId"`
+}
+
+type Room struct {
+	MaxTemperature       int           `json:"maxTemperature"`
+	IndependentDeviceIds []interface{} `json:"independentDeviceIds"`
+	MaxTemperatureMsg    string        `json:"maxTemperatureMsg"`
+	ChangeTemperature    int           `json:"changeTemperature"`
+	ControlSource        string        `json:"controlSource"`
+	ComfortTemp          int           `json:"comfortTemp"`
+	RoomProgram          string        `json:"roomProgram"`
+	AwayTemp             int           `json:"awayTemp"`
+	AvgTemp              int           `json:"avgTemp"`
+	ChangeTemperatureMsg string        `json:"changeTemperatureMsg"`
+	RoomID               int64         `json:"roomId"`
+	RoomName             string        `json:"roomName"`
+	CurrentMode          int           `json:"currentMode"`
+	HeatStatus           int           `json:"heatStatus"`
+	OffLineDeviceNum     int           `json:"offLineDeviceNum"`
+	Total                int           `json:"total"`
+	IndependentCount     int           `json:"independentCount"`
+	SleepTemp            int           `json:"sleepTemp"`
+	OnlineDeviceNum      int           `json:"onlineDeviceNum"`
+	IsOffline            int           `json:"isOffline"`
 }
 
 // GetAuth sends curl request to get authorization_code
@@ -165,15 +163,14 @@ func (config *Config) GetAuth(accessKey string, secretToken string) string {
 		// handle err
 		log.Debug("read error")
 	}
-	conf := Config{}
-	jsonErr := json.Unmarshal(body, &conf)
+	jsonErr := json.Unmarshal(body, &config)
 	if jsonErr != nil {
 		// handle err
 		log.Debug("json error")
 	}
 
 	defer resp.Body.Close()
-	return conf.Data.AuthorizationCode
+	return config.Data.AuthorizationCode
 }
 
 // GetAccessAndRefresh sends curl request to get access_token and refresh_token, as well as expireTime and refresh_expireTime
@@ -213,7 +210,6 @@ func (config *Config) GetAccessAndRefresh(authorizationCode string, password str
 	return accessToken, refreshToken, expireTime, refreshExpireTime
 }
 
-// Reading json does not work
 func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
 	req, err := http.NewRequest("POST", selectHomeListURL, nil)
 	if err != nil {
@@ -227,14 +223,58 @@ func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
 		// handle err
 	}
 
-	log.Debug(resp.Body)
-
-	if err = processHTTPResponse(resp, err, c.Hc); err != nil {
-		return nil, err
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		// handle err
+		log.Debug("read error")
 	}
+
+	jsonErr := json.Unmarshal(body, &c.Hc)
+	if jsonErr != nil {
+		// handle err
+		log.Debug("json error")
+	}
+	log.Debug(c.Hc)
+	log.Debug(c.Hc.Data.Homes)
+	defer resp.Body.Close()
 
 	return c.Hc, nil
 }
+
+func (c *Client) GetRoomList(accessToken string, homeID int64) (*RoomCollection, error) {
+	url := fmt.Sprintf("%s%s%s%d", selectRoombyHomeURL, "?", "homeId=", homeID)
+	log.Debug(url)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Access_token", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// handle err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		// handle err
+		log.Debug("read error")
+	}
+
+	jsonErr := json.Unmarshal(body, &c.Rc)
+	if jsonErr != nil {
+		// handle err
+		log.Debug("json error")
+	}
+	log.Debug(c.Rc)
+	log.Debug(c.Rc.Data.Rooms)
+	defer resp.Body.Close()
+
+	return c.Rc, nil
+}
+
+// func (c *Client) GetDeviceList
 
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {

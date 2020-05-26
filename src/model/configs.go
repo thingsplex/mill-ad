@@ -3,12 +3,13 @@ package model
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/thingsplex/mill/utils"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/thingsplex/mill/utils"
 )
 
 const ServiceName = "mill"
@@ -40,6 +41,9 @@ type Configs struct {
 	RefreshToken      string `json:"refresh_token"`      // this should be moved
 	ExpireTime        int64  `json:"expireTime"`         // this should be moved
 	RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
+
+	HomeID int64 `json:"homeId"` // this should be moved
+
 }
 
 func NewConfigs(workDir string) *Configs {

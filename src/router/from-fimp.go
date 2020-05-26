@@ -117,10 +117,38 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 			fc.configs.AccessToken, fc.configs.RefreshToken, fc.configs.ExpireTime, fc.configs.RefreshExpireTime = config.GetAccessAndRefresh(fc.configs.AuthorizationCode, fc.configs.Password, fc.configs.Username)
+			if fc.configs.AccessToken != "" && fc.configs.RefreshToken != "" { // add some logic to check expire times as well
+				log.Debug("All tokens received and saved.")
+				log.Debug(fc.configs.AccessToken)
+			} else {
+				status.Status = "ERROR"
+				status.ErrorText = "Empty accessToken or refreshToken"
+				log.Debug(status.ErrorText)
+			}
 
 		case "cmd.network.get_all_nodes":
-			// This does not work
-			log.Debug(client.GetHomeList(fc.configs.AccessToken))
+			// returns HomeCollection to homes
+			homes, err := client.GetHomeList(fc.configs.AccessToken)
+			if err != nil {
+				// handle err
+			}
+			for i, home := range homes.Data.Homes {
+				log.Debug(i, home)
+			}
+
+			homeID := homes.Data.Homes[0].HomeID // save this somewhere
+
+			// returns RoomCollection from one home to rooms (make it possible to have multiple homes)
+			rooms, err := client.GetRoomList(fc.configs.AccessToken, homeID)
+			if err != nil {
+				// handle err
+			}
+
+			for p, room := range rooms.Data.Rooms {
+				log.Debug(p, room)
+			}
+
+			// Save homes and rooms to struct in model instead?
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
