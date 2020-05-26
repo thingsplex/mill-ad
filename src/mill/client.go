@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/thingsplex/mill/model"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -60,6 +62,7 @@ type Config struct {
 
 // Client to make request to Mill API
 type Client struct {
+	configs      *model.Configs
 	httpResponse *http.Response
 	Dc           *DeviceCollection
 	Rc           *RoomCollection
@@ -68,9 +71,9 @@ type Client struct {
 
 // DeviceCollection hold all devices from mill account
 type DeviceCollection struct {
-	Body struct {
+	Data struct {
 		Devices []*Device `json:"deviceList"`
-	}
+	} `json:"data"`
 }
 
 type RoomCollection struct {
@@ -87,19 +90,19 @@ type HomeCollection struct {
 
 // Device is a mill heater
 type Device struct {
-	maxTemperature       *int32 `json:"maxTemperature"`
-	maxTemperatureMsg    string `json:"maxTemperatureMsg"`
-	changeTemperature    *int32 `json:"changeTemperature"`
-	canChangeTemp        bool   `json:"canChangeTemp"`
-	deviceId             *int32 `json:"deviceId"`
-	deviceName           string `json:"deviceName"`
-	changeTemperatureMsg string `json:"changeTemperatureMsg"`
-	mac                  string `json:"mac"`
-	deviceStatus         bool   `json:"deviceStatus"`
-	heaterFlag           string `json:"heaterFlag"`
-	subDomainId          *int32 `json:"subDomainId"`
-	controlType          bool   `json:"controlType"`
-	currentTemp          *int32 `json:"currentTemp"`
+	MaxTemperature       int    `json:"maxTemperature"`
+	MaxTemperatureMsg    string `json:"maxTemperatureMsg"`
+	ChangeTemperature    int    `json:"changeTemperature"`
+	CanChangeTemp        int    `json:"canChangeTemp"`
+	DeviceID             int    `json:"deviceId"`
+	DeviceName           string `json:"deviceName"`
+	ChangeTemperatureMsg string `json:"changeTemperatureMsg"`
+	Mac                  string `json:"mac"`
+	DeviceStatus         int    `json:"deviceStatus"`
+	HeaterFlag           int    `json:"heaterFlag"`
+	SubDomainID          int    `json:"subDomainId"`
+	ControlType          int    `json:"controlType"`
+	CurrentTemp          int    `json:"currentTemp"`
 }
 
 type Home struct {
@@ -210,6 +213,7 @@ func (config *Config) GetAccessAndRefresh(authorizationCode string, password str
 	return accessToken, refreshToken, expireTime, refreshExpireTime
 }
 
+// GetHomeList sends curl request to get list of homes connected to user
 func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
 	req, err := http.NewRequest("POST", selectHomeListURL, nil)
 	if err != nil {
@@ -234,16 +238,14 @@ func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
 		// handle err
 		log.Debug("json error")
 	}
-	log.Debug(c.Hc)
-	log.Debug(c.Hc.Data.Homes)
 	defer resp.Body.Close()
 
 	return c.Hc, nil
 }
 
+// GetRoomList sends curl request to get list of rooms by home
 func (c *Client) GetRoomList(accessToken string, homeID int64) (*RoomCollection, error) {
-	url := fmt.Sprintf("%s%s%s%d", selectRoombyHomeURL, "?", "homeId=", homeID)
-	log.Debug(url)
+	url := fmt.Sprintf("%s%s%d", selectRoombyHomeURL, "?homeId=", homeID)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
@@ -267,14 +269,41 @@ func (c *Client) GetRoomList(accessToken string, homeID int64) (*RoomCollection,
 		// handle err
 		log.Debug("json error")
 	}
-	log.Debug(c.Rc)
-	log.Debug(c.Rc.Data.Rooms)
 	defer resp.Body.Close()
 
 	return c.Rc, nil
 }
 
-// func (c *Client) GetDeviceList
+// GetDeviceList sends curl request to get list of devices by room
+func (c *Client) GetDeviceList(accessToken string, roomID int64) (*DeviceCollection, error) {
+	url := fmt.Sprintf("%s%s%d", selectDevicebyRoomURL, "?roomId=", roomID)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Access_token", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// handle err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		// handle err
+		log.Debug("read error")
+	}
+
+	jsonErr := json.Unmarshal(body, &c.Dc)
+	if jsonErr != nil {
+		// handle err
+		log.Debug("json error")
+	}
+	defer resp.Body.Close()
+
+	return c.Dc, nil
+}
 
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {

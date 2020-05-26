@@ -18,6 +18,7 @@ type FromFimpRouter struct {
 	instanceID   string
 	appLifecycle *model.Lifecycle
 	configs      *model.Configs
+	// dc           *model.DeviceCollection
 }
 
 func NewFromFimpRouter(mqt *fimpgo.MqttTransport, appLifecycle *model.Lifecycle, configs *model.Configs) *FromFimpRouter {
@@ -119,7 +120,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			fc.configs.AccessToken, fc.configs.RefreshToken, fc.configs.ExpireTime, fc.configs.RefreshExpireTime = config.GetAccessAndRefresh(fc.configs.AuthorizationCode, fc.configs.Password, fc.configs.Username)
 			if fc.configs.AccessToken != "" && fc.configs.RefreshToken != "" { // add some logic to check expire times as well
 				log.Debug("All tokens received and saved.")
-				log.Debug(fc.configs.AccessToken)
+				log.Debug("Access token: ", fc.configs.AccessToken)
 			} else {
 				status.Status = "ERROR"
 				status.ErrorText = "Empty accessToken or refreshToken"
@@ -132,23 +133,36 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			if err != nil {
 				// handle err
 			}
-			for i, home := range homes.Data.Homes {
-				log.Debug(i, home)
-			}
-
-			homeID := homes.Data.Homes[0].HomeID // save this somewhere
+			// Save relevant attributes (this only allows for one home)
+			fc.configs.Home.HomeID = homes.Data.Homes[0].HomeID
 
 			// returns RoomCollection from one home to rooms (make it possible to have multiple homes)
-			rooms, err := client.GetRoomList(fc.configs.AccessToken, homeID)
+			rooms, err := client.GetRoomList(fc.configs.AccessToken, fc.configs.Home.HomeID)
 			if err != nil {
 				// handle err
 			}
+			// Save relevant attributes (this only allows for one room, fix asap)
+			fc.configs.Room.RoomID = rooms.Data.Rooms[0].RoomID
+			fc.configs.Room.RoomName = rooms.Data.Rooms[0].RoomName
+			// Save homes and rooms to struct in .model instead?
 
-			for p, room := range rooms.Data.Rooms {
-				log.Debug(p, room)
-			}
+			// Now have homeId and roomId. Get devices per room and independent devices.
+			devices, err := client.GetDeviceList(fc.configs.AccessToken, rooms.Data.Rooms[0].RoomID)
+			// independentDevices, err := client.GetIndependentDevices(...)
 
-			// Save homes and rooms to struct in model instead?
+			// Save relevant attributes (this only allows for one device, fix asap)
+			// for i := range devices.Data.Devices {
+			fc.configs.Device.ChangeTemperature = devices.Data.Devices[0].ChangeTemperature
+			fc.configs.Device.CanChangeTemp = devices.Data.Devices[0].CanChangeTemp
+			fc.configs.Device.DeviceID = devices.Data.Devices[0].DeviceID
+			fc.configs.Device.DeviceName = devices.Data.Devices[0].DeviceName
+			fc.configs.Device.DeviceStatus = devices.Data.Devices[0].DeviceStatus
+			fc.configs.Device.ControlType = devices.Data.Devices[0].ControlType
+			fc.configs.Device.CurrentTemp = devices.Data.Devices[0].CurrentTemp
+			// }
+			fmt.Printf("%+v\n", fc.configs.Home)
+			fmt.Printf("%+v\n", fc.configs.Room)
+			fmt.Printf("%+v\n", fc.configs.Device)
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
