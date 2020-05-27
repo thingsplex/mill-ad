@@ -3,7 +3,6 @@ package mill
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/thingsplex/mill/model"
@@ -64,27 +63,11 @@ type Config struct {
 type Client struct {
 	configs      *model.Configs
 	httpResponse *http.Response
-	Dc           *DeviceCollection
-	Rc           *RoomCollection
-	Hc           *HomeCollection
-}
 
-// DeviceCollection hold all devices from mill account
-type DeviceCollection struct {
 	Data struct {
+		Homes   []*Home   `json:"homeList"`
+		Rooms   []*Room   `json:"roomList"`
 		Devices []*Device `json:"deviceList"`
-	} `json:"data"`
-}
-
-type RoomCollection struct {
-	Data struct {
-		Rooms []*Room `json:"roomList"`
-	} `json:"data"`
-}
-
-type HomeCollection struct {
-	Data struct {
-		Homes []*Home `json:"homeList"`
 	} `json:"data"`
 }
 
@@ -144,8 +127,8 @@ type Room struct {
 	IsOffline            int           `json:"isOffline"`
 }
 
-// GetAuth sends curl request to get authorization_code
-func (config *Config) GetAuth(accessKey string, secretToken string) string {
+// NewClient create a handle authentication to Mill API
+func (config *Config) NewClient(accessKey string, secretToken string, password string, username string) (string, string, string, int64, int64) {
 	req, err := http.NewRequest("POST", authURL, nil)
 	if err != nil {
 		// handle err
@@ -156,65 +139,33 @@ func (config *Config) GetAuth(accessKey string, secretToken string) string {
 	req.Header.Set("Secret_token", secretToken)
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		// handle err
-		log.Debug("do error")
-	}
+	processHTTPResponse(resp, err, config)
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// handle err
-		log.Debug("read error")
-	}
-	jsonErr := json.Unmarshal(body, &config)
-	if jsonErr != nil {
-		// handle err
-		log.Debug("json error")
-	}
+	authorizationCode := config.Data.AuthorizationCode
 
-	defer resp.Body.Close()
-	return config.Data.AuthorizationCode
-}
-
-// GetAccessAndRefresh sends curl request to get access_token and refresh_token, as well as expireTime and refresh_expireTime
-func (config *Config) GetAccessAndRefresh(authorizationCode string, password string, username string) (string, string, int64, int64) {
+	// have authorization code, send new curl request to get tokens
 	url := applyAccessTokenURL + "?password=" + password + "&username=" + username
-	req, err := http.NewRequest("POST", url, nil)
+	req, err = http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Authorization_code", authorizationCode)
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		// handle err
-		log.Debug("do error")
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// handle err
-		log.Debug("read error")
-	}
+	resp, err = http.DefaultClient.Do(req)
+	processHTTPResponse(resp, err, config)
 
-	conf := Config{}
-	jsonErr := json.Unmarshal(body, &conf)
-	if jsonErr != nil {
-		// handle err
-		log.Debug("json error")
-	}
-
-	accessToken := conf.Data.AccessToken
-	refreshToken := conf.Data.RefreshToken
-	expireTime := conf.Data.ExpireTime
-	refreshExpireTime := conf.Data.RefreshExpireTime
+	accessToken := config.Data.AccessToken
+	refreshToken := config.Data.RefreshToken
+	expireTime := config.Data.ExpireTime
+	refreshExpireTime := config.Data.RefreshExpireTime
 
 	defer resp.Body.Close()
-	return accessToken, refreshToken, expireTime, refreshExpireTime
+	return authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
 }
 
 // GetHomeList sends curl request to get list of homes connected to user
-func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
+func (c *Client) GetHomeList(accessToken string) (*Client, error) {
 	req, err := http.NewRequest("POST", selectHomeListURL, nil)
 	if err != nil {
 		// handle err
@@ -223,28 +174,13 @@ func (c *Client) GetHomeList(accessToken string) (*HomeCollection, error) {
 	req.Header.Set("Access_token", accessToken)
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		// handle err
-	}
+	processHTTPResponse(resp, err, c)
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// handle err
-		log.Debug("read error")
-	}
-
-	jsonErr := json.Unmarshal(body, &c.Hc)
-	if jsonErr != nil {
-		// handle err
-		log.Debug("json error")
-	}
-	defer resp.Body.Close()
-
-	return c.Hc, nil
+	return c, nil
 }
 
 // GetRoomList sends curl request to get list of rooms by home
-func (c *Client) GetRoomList(accessToken string, homeID int64) (*RoomCollection, error) {
+func (c *Client) GetRoomList(accessToken string, homeID int64) (*Client, error) {
 	url := fmt.Sprintf("%s%s%d", selectRoombyHomeURL, "?homeId=", homeID)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -254,28 +190,12 @@ func (c *Client) GetRoomList(accessToken string, homeID int64) (*RoomCollection,
 	req.Header.Set("Access_token", accessToken)
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		// handle err
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// handle err
-		log.Debug("read error")
-	}
-
-	jsonErr := json.Unmarshal(body, &c.Rc)
-	if jsonErr != nil {
-		// handle err
-		log.Debug("json error")
-	}
-	defer resp.Body.Close()
-
-	return c.Rc, nil
+	processHTTPResponse(resp, err, c)
+	return c, nil
 }
 
 // GetDeviceList sends curl request to get list of devices by room
-func (c *Client) GetDeviceList(accessToken string, roomID int64) (*DeviceCollection, error) {
+func (c *Client) GetDeviceList(accessToken string, roomID int64) (*Client, error) {
 	url := fmt.Sprintf("%s%s%d", selectDevicebyRoomURL, "?roomId=", roomID)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -285,24 +205,8 @@ func (c *Client) GetDeviceList(accessToken string, roomID int64) (*DeviceCollect
 	req.Header.Set("Access_token", accessToken)
 
 	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		// handle err
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		// handle err
-		log.Debug("read error")
-	}
-
-	jsonErr := json.Unmarshal(body, &c.Dc)
-	if jsonErr != nil {
-		// handle err
-		log.Debug("json error")
-	}
-	defer resp.Body.Close()
-
-	return c.Dc, nil
+	processHTTPResponse(resp, err, c)
+	return c, nil
 }
 
 // Unmarshall received data into holder struct

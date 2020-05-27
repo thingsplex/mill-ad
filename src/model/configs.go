@@ -35,12 +35,13 @@ type Configs struct {
 	AccessKey   string `json:"access_key"`   // this should be moved
 	SecretToken string `json:"secret_token"` // this should be moved
 
-	AuthorizationCode string `json:"authorization_code"` // this should be moved
-
-	AccessToken       string `json:"access_token"`       // this should be moved
-	RefreshToken      string `json:"refresh_token"`      // this should be moved
-	ExpireTime        int64  `json:"expireTime"`         // this should be moved
-	RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
+	Auth struct {
+		AuthorizationCode string `json:"authorization_code"` // this should be moved
+		AccessToken       string `json:"access_token"`       // this should be moved
+		RefreshToken      string `json:"refresh_token"`      // this should be moved
+		ExpireTime        int64  `json:"expireTime"`         // this should be moved
+		RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
+	}
 
 	// DeviceCollection struct {
 	// 	Devices []*Device

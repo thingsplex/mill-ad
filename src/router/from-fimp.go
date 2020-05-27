@@ -76,6 +76,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		log.Debug("New payload type ", newMsg.Payload.Type)
 		adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1"}
 		switch newMsg.Payload.Type {
+
 		case "cmd.auth.login":
 			fc.configs.Username = newMsg.Payload.Properties["username"]
 			fc.configs.Password = newMsg.Payload.Properties["password"]
@@ -89,21 +90,25 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 			if fc.configs.Username != "" && fc.configs.Password != "" && fc.configs.AccessKey != "" && fc.configs.SecretToken != "" {
-				// We now have username, password, accessKey and secretToken.
-				// Send /share/applyAuthCode api request to get authorization_code
-				fc.configs.AuthorizationCode = config.GetAuth(fc.configs.AccessKey, fc.configs.SecretToken)
-				log.Debug("Authorization code: ", fc.configs.AuthorizationCode)
+				// Send api requests to get authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
+				fc.configs.Auth.AuthorizationCode, fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.NewClient(fc.configs.AccessKey, fc.configs.SecretToken, fc.configs.Password, fc.configs.Username)
 			} else {
 				status.Status = "ERROR"
 				status.ErrorText = "Empty username or password or access_key or secret_token"
 				log.Debug(status.ErrorText)
 			}
-
-			if fc.configs.AuthorizationCode == "" {
+			if fc.configs.Auth.AuthorizationCode == "" {
 				status.Status = model.AuthStateNotAuthenticated
 				log.Debug("No authorization code received")
 			} else {
 				status.Status = model.AuthStateAuthenticated
+			}
+			if fc.configs.Auth.AccessToken != "" && fc.configs.Auth.RefreshToken != "" { // add some logic to check expire times as well
+				log.Debug("All tokens received and saved.")
+			} else {
+				status.Status = "ERROR"
+				status.ErrorText = "Empty accessToken or refreshToken"
+				log.Debug(status.ErrorText)
 			}
 
 			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, status, nil, nil, newMsg.Payload)
@@ -112,57 +117,29 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.mqt.Publish(adr, msg)
 			}
 
-			// If authorization gode is not received we exit the case. Else we continue to get access_token and refresh_token.
-			if status.Status != model.AuthStateAuthenticated {
-				break
-			}
-
-			fc.configs.AccessToken, fc.configs.RefreshToken, fc.configs.ExpireTime, fc.configs.RefreshExpireTime = config.GetAccessAndRefresh(fc.configs.AuthorizationCode, fc.configs.Password, fc.configs.Username)
-			if fc.configs.AccessToken != "" && fc.configs.RefreshToken != "" { // add some logic to check expire times as well
-				log.Debug("All tokens received and saved.")
-				log.Debug("Access token: ", fc.configs.AccessToken)
-			} else {
-				status.Status = "ERROR"
-				status.ErrorText = "Empty accessToken or refreshToken"
-				log.Debug(status.ErrorText)
-			}
-
 		case "cmd.network.get_all_nodes":
 			// returns HomeCollection to homes
-			homes, err := client.GetHomeList(fc.configs.AccessToken)
+			homes, err := client.GetHomeList(fc.configs.Auth.AccessToken)
 			if err != nil {
 				// handle err
 			}
-			// Save relevant attributes (this only allows for one home)
-			fc.configs.Home.HomeID = homes.Data.Homes[0].HomeID
-
-			// returns RoomCollection from one home to rooms (make it possible to have multiple homes)
-			rooms, err := client.GetRoomList(fc.configs.AccessToken, fc.configs.Home.HomeID)
-			if err != nil {
-				// handle err
+			for i := range homes.Data.Homes {
+				rooms, err := client.GetRoomList(fc.configs.Auth.AccessToken, homes.Data.Homes[i].HomeID)
+				if err != nil {
+					// handle err
+				}
+				log.Debug(homes.Data.Homes[i].HomeName)
+				for p := range rooms.Data.Rooms {
+					log.Debug(rooms.Data.Rooms[p].RoomName)
+					devices, err := client.GetDeviceList(fc.configs.Auth.AccessToken, rooms.Data.Rooms[p].RoomID)
+					if err != nil {
+						// handle err
+					}
+					for s := range devices.Data.Devices {
+						log.Debug(devices.Data.Devices[s].DeviceName)
+					}
+				}
 			}
-			// Save relevant attributes (this only allows for one room, fix asap)
-			fc.configs.Room.RoomID = rooms.Data.Rooms[0].RoomID
-			fc.configs.Room.RoomName = rooms.Data.Rooms[0].RoomName
-			// Save homes and rooms to struct in .model instead?
-
-			// Now have homeId and roomId. Get devices per room and independent devices.
-			devices, err := client.GetDeviceList(fc.configs.AccessToken, rooms.Data.Rooms[0].RoomID)
-			// independentDevices, err := client.GetIndependentDevices(...)
-
-			// Save relevant attributes (this only allows for one device, fix asap)
-			// for i := range devices.Data.Devices {
-			fc.configs.Device.ChangeTemperature = devices.Data.Devices[0].ChangeTemperature
-			fc.configs.Device.CanChangeTemp = devices.Data.Devices[0].CanChangeTemp
-			fc.configs.Device.DeviceID = devices.Data.Devices[0].DeviceID
-			fc.configs.Device.DeviceName = devices.Data.Devices[0].DeviceName
-			fc.configs.Device.DeviceStatus = devices.Data.Devices[0].DeviceStatus
-			fc.configs.Device.ControlType = devices.Data.Devices[0].ControlType
-			fc.configs.Device.CurrentTemp = devices.Data.Devices[0].CurrentTemp
-			// }
-			fmt.Printf("%+v\n", fc.configs.Home)
-			fmt.Printf("%+v\n", fc.configs.Room)
-			fmt.Printf("%+v\n", fc.configs.Device)
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
