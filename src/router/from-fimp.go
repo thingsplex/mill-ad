@@ -123,23 +123,57 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			if err != nil {
 				// handle err
 			}
-			for i := range homes.Data.Homes {
-				rooms, err := client.GetRoomList(fc.configs.Auth.AccessToken, homes.Data.Homes[i].HomeID)
+			// Delete previously saved nodes
+			fc.configs.HomeIDs = nil
+			fc.configs.HomeNames = nil
+			fc.configs.RoomIDs = nil
+			fc.configs.RoomNames = nil
+			fc.configs.DeviceIDs = nil
+			fc.configs.DeviceNames = nil
+
+			// Get all homes, rooms and devices and save to corresponding slices in order
+			for home := range homes.Data.Homes {
+				fc.configs.HomeIDs = append(fc.configs.HomeIDs, homes.Data.Homes[home].HomeID)
+				fc.configs.HomeNames = append(fc.configs.HomeNames, homes.Data.Homes[home].HomeName)
+
+				fc.configs.RoomIDs = append(fc.configs.RoomIDs, []int64{})
+				fc.configs.RoomNames = append(fc.configs.RoomNames, []string{})
+
+				fc.configs.DeviceIDs = append(fc.configs.DeviceIDs, [][]int64{})
+				fc.configs.DeviceNames = append(fc.configs.DeviceNames, [][]string{})
+
+				rooms, err := client.GetRoomList(fc.configs.Auth.AccessToken, homes.Data.Homes[home].HomeID)
 				if err != nil {
 					// handle err
 				}
-				log.Debug(homes.Data.Homes[i].HomeName)
-				for p := range rooms.Data.Rooms {
-					log.Debug(rooms.Data.Rooms[p].RoomName)
-					devices, err := client.GetDeviceList(fc.configs.Auth.AccessToken, rooms.Data.Rooms[p].RoomID)
+
+				for room := range rooms.Data.Rooms {
+					fc.configs.RoomIDs[home] = append(fc.configs.RoomIDs[home], rooms.Data.Rooms[room].RoomID)
+					fc.configs.RoomNames[home] = append(fc.configs.RoomNames[home], rooms.Data.Rooms[room].RoomName)
+
+					fc.configs.DeviceIDs[home] = append(fc.configs.DeviceIDs[home], []int64{})
+					fc.configs.DeviceNames[home] = append(fc.configs.DeviceNames[home], []string{})
+
+					devices, err := client.GetDeviceList(fc.configs.Auth.AccessToken, rooms.Data.Rooms[room].RoomID)
 					if err != nil {
 						// handle err
 					}
-					for s := range devices.Data.Devices {
-						log.Debug(devices.Data.Devices[s].DeviceName)
+					for device := range devices.Data.Devices {
+						fc.configs.DeviceIDs[home][room] = append(fc.configs.DeviceIDs[home][room], devices.Data.Devices[device].DeviceID)
+						fc.configs.DeviceNames[home][room] = append(fc.configs.DeviceNames[home][room], devices.Data.Devices[device].DeviceName)
 					}
+					// log.Debug(devices)
 				}
 			}
+			log.Debug(fc.configs.HomeNames)
+			log.Debug(fc.configs.RoomNames)
+			log.Debug(fc.configs.DeviceNames)
+
+			// msg := fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, status, nil, nil, newMsg.Payload)
+			// if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+			// 	// if response topic is not set , sending back to default application event topic
+			// 	fc.mqt.Publish(adr, msg)
+			// }
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()

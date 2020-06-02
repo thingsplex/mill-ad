@@ -43,28 +43,14 @@ type Configs struct {
 		RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
 	}
 
-	// DeviceCollection struct {
-	// 	Devices []*Device
-	// }
+	HomeIDs   []int64
+	HomeNames []string
 
-	Home struct {
-		HomeID int64 `json:"homeId"` // this should be moved
-	}
+	RoomIDs   [][]int64
+	RoomNames [][]string
 
-	Room struct {
-		RoomID   int64  `json:"roomId"`
-		RoomName string `json:"roomName"`
-	}
-
-	Device struct {
-		ChangeTemperature int    `json:"changeTemperature"`
-		CanChangeTemp     int    `json:"canChangeTemp"`
-		DeviceID          int    `json:"deviceId"`
-		DeviceName        string `json:"deviceName"`
-		DeviceStatus      int    `json:"deviceStatus"`
-		ControlType       int    `json:"controlType"`
-		CurrentTemp       int    `json:"currentTemp"`
-	}
+	DeviceIDs   [][][]int64
+	DeviceNames [][][]string
 }
 
 func NewConfigs(workDir string) *Configs {

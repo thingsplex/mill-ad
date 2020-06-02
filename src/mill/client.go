@@ -77,7 +77,7 @@ type Device struct {
 	MaxTemperatureMsg    string `json:"maxTemperatureMsg"`
 	ChangeTemperature    int    `json:"changeTemperature"`
 	CanChangeTemp        int    `json:"canChangeTemp"`
-	DeviceID             int    `json:"deviceId"`
+	DeviceID             int64  `json:"deviceId"`
 	DeviceName           string `json:"deviceName"`
 	ChangeTemperatureMsg string `json:"changeTemperatureMsg"`
 	Mac                  string `json:"mac"`
