@@ -65,10 +65,28 @@ type Client struct {
 	httpResponse *http.Response
 
 	Data struct {
-		Homes   []*Home   `json:"homeList"`
-		Rooms   []*Room   `json:"roomList"`
-		Devices []*Device `json:"deviceList"`
+		Homes              []Home   `json:"homeList"`
+		Rooms              []Room   `json:"roomList"`
+		Devices            []Device `json:"deviceList"`
+		IndependentDevices []Device `json:"deviceInfoList"`
+		// IndependentDevices []*IndependentDevice `json:"deviceInfoList"`
 	} `json:"data"`
+}
+
+type IndependentDevice struct {
+	MaxTemperature       int    `json:"maxTemperature"`
+	MaxTemperatureMsg    string `json:"maxTemperatureMsg"`
+	ChangeTemperature    int    `json:"changeTemperature"`
+	CanChangeTemp        int    `json:"canChangeTemp"`
+	DeviceID             int64  `json:"deviceId"`
+	DeviceName           string `json:"deviceName"`
+	ChangeTemperatureMsg string `json:"changeTemperatureMsg"`
+	Mac                  string `json:"mac"`
+	DeviceStatus         int    `json:"deviceStatus"`
+	HeaterFlag           int    `json:"heaterFlag"`
+	SubDomainID          int    `json:"subDomainId"`
+	ControlType          int    `json:"controlType"`
+	CurrentTemp          int    `json:"currentTemp"`
 }
 
 // Device is a mill heater
@@ -164,6 +182,45 @@ func (config *Config) NewClient(accessKey string, secretToken string, password s
 	return authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
 }
 
+func (c *Client) GetAllDevices(accessToken string) ([]Device, []Room, []Home, []Device, error) {
+	homes, err := c.GetHomeList(accessToken)
+	var allDevices []Device
+	var allRooms []Room
+	var allHomes []Home
+	var allIndependentDevices []Device
+	if err != nil {
+		// handle err
+	}
+	for home := range homes.Data.Homes {
+		allHomes = append(allHomes, homes.Data.Homes[home])
+		rooms, err := c.GetRoomList(accessToken, homes.Data.Homes[home].HomeID)
+		if err != nil {
+			// handle err
+		}
+		for room := range rooms.Data.Rooms {
+			allRooms = append(allRooms, rooms.Data.Rooms[room])
+			devices, err := c.GetDeviceList(accessToken, rooms.Data.Rooms[room].RoomID)
+			for device := range devices.Data.Devices {
+				// log.Debug(devices.Data.Devices[device])
+				allDevices = append(allDevices, devices.Data.Devices[device])
+			}
+			if err != nil {
+				// handle err
+			}
+		}
+		// Get all independent devices
+		independentDevices, err := c.GetIndependentDevices(accessToken, homes.Data.Homes[home].HomeID)
+		if err != nil {
+			// handle err
+		}
+		for device := range independentDevices.Data.IndependentDevices {
+			allDevices = append(allDevices, independentDevices.Data.IndependentDevices[device])
+			allIndependentDevices = append(allIndependentDevices, independentDevices.Data.IndependentDevices[device])
+		}
+	}
+	return allDevices, allRooms, allHomes, allIndependentDevices, nil
+}
+
 // GetHomeList sends curl request to get list of homes connected to user
 func (c *Client) GetHomeList(accessToken string) (*Client, error) {
 	req, err := http.NewRequest("POST", selectHomeListURL, nil)
@@ -197,6 +254,20 @@ func (c *Client) GetRoomList(accessToken string, homeID int64) (*Client, error) 
 // GetDeviceList sends curl request to get list of devices by room
 func (c *Client) GetDeviceList(accessToken string, roomID int64) (*Client, error) {
 	url := fmt.Sprintf("%s%s%d", selectDevicebyRoomURL, "?roomId=", roomID)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Access_token", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	processHTTPResponse(resp, err, c)
+	return c, nil
+}
+
+func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Client, error) {
+	url := fmt.Sprintf("%s%s%d", getIndependentDevicesURL, "?homeId=", homeId)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err

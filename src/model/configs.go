@@ -43,14 +43,10 @@ type Configs struct {
 		RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
 	}
 
-	HomeIDs   []int64
-	HomeNames []string
-
-	RoomIDs   [][]int64
-	RoomNames [][]string
-
-	DeviceIDs   [][][]int64
-	DeviceNames [][][]string
+	HomeCollection              []interface{}
+	RoomCollection              []interface{}
+	DeviceCollection            []interface{}
+	IndependentDeviceCollection []interface{}
 }
 
 func NewConfigs(workDir string) *Configs {
