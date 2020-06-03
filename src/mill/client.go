@@ -18,7 +18,7 @@ const (
 	// authURL is mill api to get authorization_code
 	authURL = baseURL + "share/applyAuthCode"
 	// refreshURL is mill api to update access_token and refresh_token
-	refreshURL = baseURL + "share/refreshtoken"
+	refreshURL = baseURL + "share/refreshtoken?refreshtoken="
 
 	// deviceControlForOpenApiURL is mill api to controll individual devices
 	deviceControlURL = baseURL + "uds/deviceControlForOpenApi"
@@ -180,6 +180,26 @@ func (config *Config) NewClient(accessKey string, secretToken string, password s
 
 	defer resp.Body.Close()
 	return authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
+}
+
+func (config *Config) RefreshToken(refreshToken string) (string, string, int64, int64) {
+	url := fmt.Sprintf("%s%s", refreshURL, refreshToken)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+
+	resp, err := http.DefaultClient.Do(req)
+	processHTTPResponse(resp, err, config)
+
+	accessToken := config.Data.AccessToken
+	newRefreshToken := config.Data.RefreshToken
+	expireTime := config.Data.ExpireTime
+	refreshExpireTime := config.Data.RefreshExpireTime
+
+	defer resp.Body.Close()
+	return accessToken, newRefreshToken, expireTime, refreshExpireTime
 }
 
 func (c *Client) GetAllDevices(accessToken string) ([]Device, []Room, []Home, []Device, error) {

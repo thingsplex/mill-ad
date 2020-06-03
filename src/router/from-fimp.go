@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"strings"
 
@@ -49,6 +50,19 @@ func (fc *FromFimpRouter) Start() {
 }
 
 func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
+	config := mill.Config{}
+	client := mill.Client{}
+
+	// Get new tokens if expires_in is exceeded. expireTime lasts for two hours, refreshExpireTime lasts for 30 days.
+	if fc.configs.Auth.ExpireTime != 0 {
+		millis := time.Now().UnixNano() / 1000000
+		if millis > fc.configs.Auth.ExpireTime && millis < fc.configs.Auth.RefreshExpireTime {
+			fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.RefreshToken(fc.configs.Auth.RefreshToken)
+		} else if millis > fc.configs.Auth.RefreshExpireTime {
+			log.Debug("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
+		}
+	}
+
 	log.Debug("New fimp msg")
 	addr := strings.Replace(newMsg.Addr.ServiceAddress, "_0", "", 1)
 	switch newMsg.Payload.Service {
@@ -70,8 +84,6 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		}
 
 	case model.ServiceName:
-		config := mill.Config{}
-		client := mill.Client{}
 
 		log.Debug("New payload type ", newMsg.Payload.Type)
 		adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1"}
