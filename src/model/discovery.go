@@ -19,5 +19,4 @@ func GetDiscoveryResource() discovery.Resource {
 			Services:              nil, // Services must be defines in manifest
 		},
 	}
-
 }

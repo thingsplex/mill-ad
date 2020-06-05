@@ -3,8 +3,6 @@ package router
 import (
 	"fmt"
 	"path/filepath"
-	"reflect"
-	"strconv"
 	"time"
 
 	"strings"
@@ -68,29 +66,39 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	log.Debug("New fimp msg")
 	addr := strings.Replace(newMsg.Addr.ServiceAddress, "_0", "", 1)
 	switch newMsg.Payload.Service {
-	case "out_lvl_switch":
+	case "thermostat":
 		log.Debug("thermostat")
 		addr = strings.Replace(addr, "l", "", 1)
 		switch newMsg.Payload.Type {
 		case "cmd.setpoint.set":
-			add logic
+			// add logic
 			val, _ := newMsg.Payload.GetStrMapValue()
 			newTemp := val["temp"]
+			deviceID := addr
+			deviceIndex := fc.configs.FindDeviceFromDeviceID(msg)
+			log.Debug(addr)
+			log.Debug(newTemp)
+
 			// Need online device to test how to use api to change temperature
-			
-			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				// if response topic is not set , sending back to default application event topic
-				fc.mqt.Publish(adr, msg)
-			}
+			// do deviceControl(..) for device to change temperature to newTemp
+			// deviceControl(fc.configs.Auth.AccessToken, addr)
+
+			// update devicelist, or room list ??? and read new actual set temperature from mill app
+			// fc.configs.DeviceCollection, fc.configs.Roomollection = nil, nil
+
+			// msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			// if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+			// 	// if response topic is not set , sending back to default application event topic
+			// 	fc.mqt.Publish(adr, msg)
+			// }
 
 		case "cmd.setpoint.get_report":
-			
-			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				// if response topic is not set , sending back to default application event topic
-				fc.mqt.Publish(adr, msg)
-			}
+
+			// msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			// if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+			// 	// if response topic is not set , sending back to default application event topic
+			// 	fc.mqt.Publish(adr, msg)
+			// }
 
 		case "cmd.mode.set":
 			// add logic
@@ -280,33 +288,14 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 		case "cmd.thing.get_inclusion_report":
-			nodeId, _ := newMsg.Payload.GetStringValue()
-			index := 9999
-			deviceFound := false
-			for i := 0; i < len(fc.configs.DeviceCollection); i++ {
-				val := reflect.ValueOf(fc.configs.DeviceCollection[i])
-				deviceId := strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
-				if deviceId == nodeId {
-					deviceFound = true
-					index = i
-				} else {
-					log.Debug("No device in any room with that deviceID")
-				}
+			nodeID, err := fc.configs.FindDeviceFromDeviceID(newMsg)
+			log.Debug(nodeID)
+			if err != nil { // normal error handling did not work for some reason, find out why
+				// handle error
+				log.Debug("error") // this never executes
 			}
-			if !deviceFound {
-				for i := 0; i < len(fc.configs.IndependentDeviceCollection); i++ {
-					val := reflect.ValueOf(fc.configs.IndependentDeviceCollection[i])
-					deviceId := strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
-					if deviceId == nodeId {
-						index = i
-					}
-				}
-				if !deviceFound {
-					log.Debug("No device found with that deviceID")
-				}
-			}
-			if index != 9999 {
-				inclReport := ns.SendInclusionReport(index, fc.configs.DeviceCollection)
+			if nodeID != 9999 { // using this method instead
+				inclReport := ns.SendInclusionReport(nodeID, fc.configs.DeviceCollection)
 
 				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
 				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}

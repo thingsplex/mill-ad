@@ -282,7 +282,7 @@ func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Clien
 	return c, nil
 }
 
-// func (c *Client) deviceControl(accessToken string, deviceId int64, )
+// func (c *Client) deviceControl(accessToken string, deviceId int64, ) // Need online device to test how to make this
 
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {
