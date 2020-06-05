@@ -3,6 +3,8 @@ package router
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"time"
 
 	"strings"
@@ -19,7 +21,6 @@ type FromFimpRouter struct {
 	instanceID   string
 	appLifecycle *model.Lifecycle
 	configs      *model.Configs
-	// dc           *model.DeviceCollection
 }
 
 func NewFromFimpRouter(mqt *fimpgo.MqttTransport, appLifecycle *model.Lifecycle, configs *model.Configs) *FromFimpRouter {
@@ -52,6 +53,7 @@ func (fc *FromFimpRouter) Start() {
 func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	config := mill.Config{}
 	client := mill.Client{}
+	ns := model.NetworkService{}
 
 	// Get new tokens if expires_in is exceeded. expireTime lasts for two hours, refreshExpireTime lasts for 30 days.
 	if fc.configs.Auth.ExpireTime != 0 {
@@ -67,20 +69,35 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	addr := strings.Replace(newMsg.Addr.ServiceAddress, "_0", "", 1)
 	switch newMsg.Payload.Service {
 	case "out_lvl_switch":
-		log.Debug("out_lvl_switch")
+		log.Debug("thermostat")
 		addr = strings.Replace(addr, "l", "", 1)
 		switch newMsg.Payload.Type {
-		case "cmd.binary.set":
-			// TODO: This is example . Add your logic here or remove
-		case "cmd.lvl.set":
-			// TODO: This is an example . Add your logic here or remove
-		case "out_bin_switch":
-			// val, _ := newMsg.Payload.Val
-			log.Debug("Sending switch")
-			switch newMsg.Payload.Type {
-			case "cmd.binary.set":
-				// TODO: This is an example. Add your logic here or remove
+		case "cmd.setpoint.set":
+			add logic
+			val, _ := newMsg.Payload.GetStrMapValue()
+			newTemp := val["temp"]
+			// Need online device to test how to use api to change temperature
+			
+			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				// if response topic is not set , sending back to default application event topic
+				fc.mqt.Publish(adr, msg)
 			}
+
+		case "cmd.setpoint.get_report":
+			
+			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				// if response topic is not set , sending back to default application event topic
+				fc.mqt.Publish(adr, msg)
+			}
+
+		case "cmd.mode.set":
+			// add logic
+		case "cmd.mode.get_report":
+			// add logic
+		case "cmd.sensor.get_report":
+			// add logic
 		}
 
 	case model.ServiceName:
@@ -122,6 +139,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				status.ErrorText = "Empty accessToken or refreshToken"
 				log.Debug(status.ErrorText)
 			}
+			log.Debug(fc.configs.Auth.AccessToken)
 
 			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, status, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
@@ -262,8 +280,39 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 		case "cmd.thing.get_inclusion_report":
-			//nodeId , _ := newMsg.Payload.GetStringValue()
-			// TODO: This is an example . Add your logic here or remove
+			nodeId, _ := newMsg.Payload.GetStringValue()
+			index := 9999
+			deviceFound := false
+			for i := 0; i < len(fc.configs.DeviceCollection); i++ {
+				val := reflect.ValueOf(fc.configs.DeviceCollection[i])
+				deviceId := strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
+				if deviceId == nodeId {
+					deviceFound = true
+					index = i
+				} else {
+					log.Debug("No device in any room with that deviceID")
+				}
+			}
+			if !deviceFound {
+				for i := 0; i < len(fc.configs.IndependentDeviceCollection); i++ {
+					val := reflect.ValueOf(fc.configs.IndependentDeviceCollection[i])
+					deviceId := strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
+					if deviceId == nodeId {
+						index = i
+					}
+				}
+				if !deviceFound {
+					log.Debug("No device found with that deviceID")
+				}
+			}
+			if index != 9999 {
+				inclReport := ns.SendInclusionReport(index, fc.configs.DeviceCollection)
+
+				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
+				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
+				fc.mqt.Publish(&adr, msg)
+			}
+
 		case "cmd.thing.inclusion":
 			//flag , _ := newMsg.Payload.GetBoolValue()
 			// TODO: This is an example . Add your logic here or remove
@@ -283,5 +332,6 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 
 			}
 		}
+
 	}
 }

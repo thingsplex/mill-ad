@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
+
 	"github.com/futurehomeno/fimpgo"
 	"github.com/futurehomeno/fimpgo/discovery"
 	log "github.com/sirupsen/logrus"
 	"github.com/thingsplex/mill/model"
 	"github.com/thingsplex/mill/router"
 	"github.com/thingsplex/mill/utils"
-	"time"
 )
 
 func main() {

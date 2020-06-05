@@ -1,10 +1,10 @@
 package model
 
 import (
-	log "github.com/sirupsen/logrus"
 	"sync"
-)
 
+	log "github.com/sirupsen/logrus"
+)
 
 //
 // Events : STATING -> CONFIGURING -> CONFIGURED -> RUNNING
@@ -18,31 +18,30 @@ const (
 	AppStateStartupError  = "STARTUP_ERROR"
 	AppStateNotConfigured = "NOT_CONFIGURED"
 	AppStateError         = "ERROR"
-	AppStateRunning       = "RUNNING"
 	AppStateTerminate     = "TERMINATING"
+	AppStateRunning       = "RUNNING"
 
-	ConfigStateNotConfigured = "NOT_CONFIGURED"
-	ConfigStateConfigured    = "CONFIGURED"
-	ConfigStatePartConfigured= "PART_CONFIGURED"
-	ConfigStateInProgress    = "IN_PROGRESS"
-	ConfigStateNA            = "NA"
+	ConfigStateNotConfigured  = "NOT_CONFIGURED"
+	ConfigStateConfigured     = "CONFIGURED"
+	ConfigStatePartConfigured = "PART_CONFIGURED"
+	ConfigStateInProgress     = "IN_PROGRESS"
+	ConfigStateNA             = "NA"
 
 	AuthStateNotAuthenticated = "NOT_AUTHENTICATED"
 	AuthStateAuthenticated    = "AUTHENTICATED"
 	AuthStateInProgress       = "IN_PROGRESS"
 	AuthStateNA               = "NA"
 
-	ConnStateConnecting      = "CONNECTING"
-	ConnStateConnected       = "CONNECTED"
-	ConnStateDisconnected    = "DISCONNECTED"
-	ConnStateNA              = "NA"
+	ConnStateConnecting   = "CONNECTING"
+	ConnStateConnected    = "CONNECTED"
+	ConnStateDisconnected = "DISCONNECTED"
+	ConnStateNA           = "NA"
 
 	//EventStarting            = "STARTING"
-	EventConfiguring         = "CONFIGURING"          // All configurations loaded and brokers configured
-	EventConfigError         = "CONF_ERROR"           // All configurations loaded and brokers configured
-	EventConfigured          = "CONFIGURED"          // All configurations loaded and brokers configured
-	EventRunning             = "RUNNING"
-
+	EventConfiguring = "CONFIGURING" // All configurations loaded and brokers configured
+	EventConfigError = "CONF_ERROR"  // All configurations loaded and brokers configured
+	EventConfigured  = "CONFIGURED"  // All configurations loaded and brokers configured
+	EventRunning     = "RUNNING"
 )
 
 type State string
@@ -75,6 +74,7 @@ type Lifecycle struct {
 	authState        State
 	configState      State
 }
+
 func NewAppLifecycle() *Lifecycle {
 	lf := &Lifecycle{systemEventBus: make(map[string]SystemEventChannel)}
 	lf.appState = AppStateStarting
@@ -86,17 +86,15 @@ func NewAppLifecycle() *Lifecycle {
 
 func (al *Lifecycle) GetAllStates() *AppStates {
 	appStates := AppStates{
-		App:          string(al.appState),
-		Connection:   string(al.connectionState),
-		Config:       string(al.configState),
-		Auth:         string(al.authState),
+		App:           string(al.appState),
+		Connection:    string(al.connectionState),
+		Config:        string(al.configState),
+		Auth:          string(al.authState),
 		LastErrorText: "",
 		LastErrorCode: "",
 	}
 	return &appStates
 }
-
-
 
 func (al *Lifecycle) ConfigState() State {
 	return al.configState
@@ -142,9 +140,9 @@ func (al *Lifecycle) SetAppState(currentState State, params map[string]string) {
 	al.busMux.Unlock()
 }
 
-func (al *Lifecycle) PublishEvent(name,src string, params map[string]string) {
-	event := SystemEvent{Name:name}
-	al.Publish(event,src,params)
+func (al *Lifecycle) PublishEvent(name, src string, params map[string]string) {
+	event := SystemEvent{Name: name}
+	al.Publish(event, src, params)
 }
 
 func (al *Lifecycle) Publish(event SystemEvent, src string, params map[string]string) {

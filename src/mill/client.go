@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/thingsplex/mill/model"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/thingsplex/mill/model"
 )
 
 const (
@@ -69,24 +68,7 @@ type Client struct {
 		Rooms              []Room   `json:"roomList"`
 		Devices            []Device `json:"deviceList"`
 		IndependentDevices []Device `json:"deviceInfoList"`
-		// IndependentDevices []*IndependentDevice `json:"deviceInfoList"`
 	} `json:"data"`
-}
-
-type IndependentDevice struct {
-	MaxTemperature       int    `json:"maxTemperature"`
-	MaxTemperatureMsg    string `json:"maxTemperatureMsg"`
-	ChangeTemperature    int    `json:"changeTemperature"`
-	CanChangeTemp        int    `json:"canChangeTemp"`
-	DeviceID             int64  `json:"deviceId"`
-	DeviceName           string `json:"deviceName"`
-	ChangeTemperatureMsg string `json:"changeTemperatureMsg"`
-	Mac                  string `json:"mac"`
-	DeviceStatus         int    `json:"deviceStatus"`
-	HeaterFlag           int    `json:"heaterFlag"`
-	SubDomainID          int    `json:"subDomainId"`
-	ControlType          int    `json:"controlType"`
-	CurrentTemp          int    `json:"currentTemp"`
 }
 
 // Device is a mill heater
@@ -299,6 +281,8 @@ func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Clien
 	processHTTPResponse(resp, err, c)
 	return c, nil
 }
+
+// func (c *Client) deviceControl(accessToken string, deviceId int64, )
 
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {

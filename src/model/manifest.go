@@ -2,9 +2,10 @@ package model
 
 import (
 	"encoding/json"
+	"io/ioutil"
+
 	"github.com/futurehomeno/fimpgo/fimptype"
 	log "github.com/sirupsen/logrus"
-	"io/ioutil"
 )
 
 type Manifest struct {
@@ -73,7 +74,7 @@ type UIButton struct {
 		IntfT string `json:"intf_t"`
 		Val   string `json:"val"`
 	} `json:"req"`
-	Hidden       bool `json:"hidden"`
+	Hidden bool `json:"hidden"`
 }
 
 func (b *UIButton) Hide() {
@@ -110,7 +111,6 @@ func (b *AppUBLock) Show() {
 	b.Hidden = true
 }
 
-
 func NewManifest() *Manifest {
 	return &Manifest{}
 }
@@ -145,8 +145,8 @@ func (m *Manifest) SaveToFile(filePath string) error {
 	return nil
 }
 
-func (m *Manifest) GetUIBlock(id string)*AppUBLock {
-	for i:=range m.UIBlocks {
+func (m *Manifest) GetUIBlock(id string) *AppUBLock {
+	for i := range m.UIBlocks {
 		if m.UIBlocks[i].ID == id {
 			return &m.UIBlocks[i]
 		}
@@ -154,8 +154,8 @@ func (m *Manifest) GetUIBlock(id string)*AppUBLock {
 	return nil
 }
 
-func (m *Manifest) GetButton(id string)*UIButton {
-	for i:=range m.UIButtons {
+func (m *Manifest) GetButton(id string) *UIButton {
+	for i := range m.UIButtons {
 		if m.UIButtons[i].ID == id {
 			return &m.UIButtons[i]
 		}
@@ -163,13 +163,11 @@ func (m *Manifest) GetButton(id string)*UIButton {
 	return nil
 }
 
-func (m *Manifest) GetAppConfig(id string)*AppConfig {
-	for i:=range m.Configs {
+func (m *Manifest) GetAppConfig(id string) *AppConfig {
+	for i := range m.Configs {
 		if m.Configs[i].ID == id {
 			return &m.Configs[i]
 		}
 	}
 	return nil
 }
-
-
