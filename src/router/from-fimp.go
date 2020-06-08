@@ -137,14 +137,16 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				// handle err
 			}
 			device := reflect.ValueOf(fc.configs.DeviceCollection[deviceIndex])
-			currentTemp := fmt.Sprintf("%.2f", device.FieldByName("CurrentTemp").Interface())
+			currentTemp := device.FieldByName("CurrentTemp").Interface()
 
 			val := currentTemp
+			props := fimpgo.Props{}
+			props["unit"] = "C"
 
 			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "sensor_temp", ServiceAddress: addr}
 			log.Debug(adr)
 
-			msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, val, nil, nil, newMsg.Payload)
+			msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, val, props, nil, newMsg.Payload)
 
 			fc.mqt.Publish(adr, msg)
 		}
