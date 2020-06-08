@@ -110,26 +110,21 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				"unit": "C",
 			}
 
-			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
 
-			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				// if response topic is not set , sending back to default application event topic
-				fc.mqt.Publish(adr, msg)
-			}
+			msg := fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
 
+			fc.mqt.Publish(adr, msg)
 		case "cmd.mode.set":
 			// Do we need this? Will/should allways be heat
 
 		case "cmd.mode.get_report":
 			val := "heat"
-			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
 
-			msg := fimpgo.NewMessage("evt.mode.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				// if response topic is not set , sending back to default application event topic
-				fc.mqt.Publish(adr, msg)
-			}
+			msg := fimpgo.NewMessage("evt.mode.report", "thermostat", fimpgo.VTypeString, val, nil, nil, newMsg.Payload)
+
+			fc.mqt.Publish(adr, msg)
 		}
 
 	case "sensor_temp":
@@ -146,13 +141,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 
 			val := currentTemp
 
-			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "sensor_temp", ServiceAddress: addr}
+			log.Debug(adr)
 
-			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				// if response topic is not set , sending back to default application event topic
-				fc.mqt.Publish(adr, msg)
-			}
+			msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, val, nil, nil, newMsg.Payload)
+
+			fc.mqt.Publish(adr, msg)
 		}
 
 	case model.ServiceName:
