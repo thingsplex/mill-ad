@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	"strings"
@@ -72,12 +73,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		switch newMsg.Payload.Type {
 		case "cmd.setpoint.set":
 			// add logic
-			val, _ := newMsg.Payload.GetStrMapValue()
-			newTemp := val["temp"]
-			deviceID := addr
-			deviceIndex := fc.configs.FindDeviceFromDeviceID(msg)
-			log.Debug(addr)
-			log.Debug(newTemp)
+			// val, _ := newMsg.Payload.GetStrMapValue()
+			// newTemp := val["temp"]
+			// deviceID := addr
+			// deviceIndex := fc.configs.FindDeviceFromDeviceID(msg)
+			// log.Debug(addr)
+			// log.Debug(newTemp)
 
 			// Need online device to test how to use api to change temperature
 			// do deviceControl(..) for device to change temperature to newTemp
@@ -94,18 +95,64 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 
 		case "cmd.setpoint.get_report":
 
-			// msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
-			// if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-			// 	// if response topic is not set , sending back to default application event topic
-			// 	fc.mqt.Publish(adr, msg)
-			// }
+			// THIS RETURNS CURRENT TEMP, NOT WANTED TEMP, what is wanted temp in device struct? Need online device to test
+
+			deviceIndex, err := fc.configs.FindDeviceFromDeviceID(addr)
+			if err != nil {
+				// handle err
+			}
+			device := reflect.ValueOf(fc.configs.DeviceCollection[deviceIndex])
+			currentTemp := fmt.Sprintf("%.2f", device.FieldByName("CurrentTemp").Interface())
+
+			val := map[string]string{
+				"type": "heat",
+				"temp": currentTemp,
+				"unit": "C",
+			}
+
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+
+			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				// if response topic is not set , sending back to default application event topic
+				fc.mqt.Publish(adr, msg)
+			}
 
 		case "cmd.mode.set":
-			// add logic
+			// Do we need this? Will/should allways be heat
+
 		case "cmd.mode.get_report":
-			// add logic
+			val := "heat"
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+
+			msg := fimpgo.NewMessage("evt.mode.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				// if response topic is not set , sending back to default application event topic
+				fc.mqt.Publish(adr, msg)
+			}
+		}
+
+	case "sensor_temp":
+		log.Debug("sensor_temp")
+		addr = strings.Replace(addr, "l", "", 1)
+		switch newMsg.Payload.Type {
 		case "cmd.sensor.get_report":
-			// add logic
+			deviceIndex, err := fc.configs.FindDeviceFromDeviceID(addr)
+			if err != nil {
+				// handle err
+			}
+			device := reflect.ValueOf(fc.configs.DeviceCollection[deviceIndex])
+			currentTemp := fmt.Sprintf("%.2f", device.FieldByName("CurrentTemp").Interface())
+
+			val := currentTemp
+
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+
+			msg := fimpgo.NewMessage("evt.setpoint.report", model.ServiceName, fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				// if response topic is not set , sending back to default application event topic
+				fc.mqt.Publish(adr, msg)
+			}
 		}
 
 	case model.ServiceName:
@@ -288,7 +335,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 		case "cmd.thing.get_inclusion_report":
-			nodeID, err := fc.configs.FindDeviceFromDeviceID(newMsg)
+			deviceID, err := newMsg.Payload.GetStringValue()
+			if err != nil {
+				// handle err
+			}
+			log.Debug(deviceID)
+			nodeID, err := fc.configs.FindDeviceFromDeviceID(deviceID)
 			log.Debug(nodeID)
 			if err != nil { // normal error handling did not work for some reason, find out why
 				// handle error
@@ -305,6 +357,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		case "cmd.thing.inclusion":
 			//flag , _ := newMsg.Payload.GetBoolValue()
 			// TODO: This is an example . Add your logic here or remove
+
 		case "cmd.thing.delete":
 			// remove device from network
 			val, err := newMsg.Payload.GetStrMapValue()

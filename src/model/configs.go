@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/futurehomeno/fimpgo"
 	log "github.com/sirupsen/logrus"
 	"github.com/thingsplex/mill/utils"
 )
@@ -116,8 +115,7 @@ type ConfigReport struct {
 	AppState AppStates `json:"app_state"`
 }
 
-func (cf *Configs) FindDeviceFromDeviceID(msg *fimpgo.Message) (index int, err error) {
-	nodeId, _ := msg.Payload.GetStringValue()
+func (cf *Configs) FindDeviceFromDeviceID(nodeId string) (index int, err error) {
 	// deviceFound := false
 	for i := 0; i < len(cf.DeviceCollection); i++ {
 		val := reflect.ValueOf(cf.DeviceCollection[i])

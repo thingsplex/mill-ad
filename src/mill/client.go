@@ -73,19 +73,19 @@ type Client struct {
 
 // Device is a mill heater
 type Device struct {
-	MaxTemperature       int    `json:"maxTemperature"`
-	MaxTemperatureMsg    string `json:"maxTemperatureMsg"`
-	ChangeTemperature    int    `json:"changeTemperature"`
-	CanChangeTemp        int    `json:"canChangeTemp"`
-	DeviceID             int64  `json:"deviceId"`
-	DeviceName           string `json:"deviceName"`
-	ChangeTemperatureMsg string `json:"changeTemperatureMsg"`
-	Mac                  string `json:"mac"`
-	DeviceStatus         int    `json:"deviceStatus"`
-	HeaterFlag           int    `json:"heaterFlag"`
-	SubDomainID          int    `json:"subDomainId"`
-	ControlType          int    `json:"controlType"`
-	CurrentTemp          int    `json:"currentTemp"`
+	MaxTemperature       int     `json:"maxTemperature"`
+	MaxTemperatureMsg    string  `json:"maxTemperatureMsg"`
+	ChangeTemperature    int     `json:"changeTemperature"`
+	CanChangeTemp        int     `json:"canChangeTemp"`
+	DeviceID             int64   `json:"deviceId"`
+	DeviceName           string  `json:"deviceName"`
+	ChangeTemperatureMsg string  `json:"changeTemperatureMsg"`
+	Mac                  string  `json:"mac"`
+	DeviceStatus         int     `json:"deviceStatus"`
+	HeaterFlag           int     `json:"heaterFlag"`
+	SubDomainID          int     `json:"subDomainId"`
+	ControlType          int     `json:"controlType"`
+	CurrentTemp          float32 `json:"currentTemp"`
 }
 
 type Home struct {
