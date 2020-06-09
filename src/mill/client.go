@@ -282,7 +282,22 @@ func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Clien
 	return c, nil
 }
 
-// func (c *Client) deviceControl(accessToken string, deviceId int64, ) // Need online device to test how to make this
+func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp string) bool {
+	url := fmt.Sprintf("%s%s%s%s%s%s", deviceControlURL, "?deviceId=", deviceId, "&holdTemp=", newTemp, "&operation=1&status=1")
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Access_token", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	processHTTPResponse(resp, err, cf)
+	if cf.ErrorCode == 0 {
+		return true
+	}
+	return false
+}
 
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {
@@ -302,4 +317,27 @@ func processHTTPResponse(resp *http.Response, err error, holder interface{}) err
 		return err
 	}
 	return nil
+}
+
+func (c *Client) UpdateLists(accessToken string, hc []interface{}, rc []interface{}, dc []interface{}, idc []interface{}) (homelist []interface{}, roomlist []interface{}, devicelist []interface{}, independentdevicelist []interface{}) {
+	// c.configs.DeviceCollection, c.configs.RoomCollection, c.configs.HomeCollection, c.configs.IndependentDeviceCollection = nil, nil, nil, nil
+
+	allDevices, allRooms, allHomes, allIndependentDevices, err := c.GetAllDevices(accessToken)
+	if err != nil {
+		// handle err
+	}
+	log.Debug(allDevices)
+	for home := range allHomes {
+		hc = append(hc, allHomes[home])
+	}
+	for room := range allRooms {
+		rc = append(rc, allRooms[room])
+	}
+	for device := range allDevices {
+		dc = append(dc, allDevices[device])
+	}
+	for device := range allIndependentDevices {
+		idc = append(idc, allIndependentDevices[device])
+	}
+	return hc, rc, dc, idc
 }
