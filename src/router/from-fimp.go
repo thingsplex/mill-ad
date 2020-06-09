@@ -115,6 +115,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			msg := fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
 
 			fc.mqt.Publish(adr, msg)
+
 		case "cmd.mode.set":
 			// Do we need this? Will/should allways be heat
 
@@ -157,11 +158,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1"}
 		switch newMsg.Payload.Type {
 
-		case "cmd.auth.login":
-			fc.configs.Username = newMsg.Payload.Properties["username"]
-			fc.configs.Password = newMsg.Payload.Properties["password"]
-			fc.configs.AccessKey = newMsg.Payload.Properties["access_key"]
-			fc.configs.SecretToken = newMsg.Payload.Properties["secret_token"]
+		case "cmd.auth.set_tokens":
+			value, err := newMsg.Payload.GetStrMapValue()
+			fc.configs.Username = value["username"]
+			fc.configs.Password = value["password"]
+			fc.configs.AccessKey = value["access_key"]
+			fc.configs.SecretToken = value["secret_token"]
 
 			status := model.AuthStatus{
 				Status:    "",
@@ -183,20 +185,57 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			} else {
 				status.Status = model.AuthStateAuthenticated
 			}
-			if fc.configs.Auth.AccessToken != "" && fc.configs.Auth.RefreshToken != "" { // add some logic to check expire times as well
+			if fc.configs.Auth.AccessToken != "" && fc.configs.Auth.RefreshToken != "" {
 				log.Debug("All tokens received and saved.")
 			} else {
 				status.Status = "ERROR"
 				status.ErrorText = "Empty accessToken or refreshToken"
 				log.Debug(status.ErrorText)
 			}
-			log.Debug(fc.configs.Auth.AccessToken)
 
 			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, status, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
 			}
+
+			// Delete previously saved nodes
+			fc.configs.DeviceCollection, fc.configs.RoomCollection, fc.configs.HomeCollection = nil, nil, nil
+
+			allDevices, allRooms, allHomes, allIndependentDevices, err := client.GetAllDevices(fc.configs.Auth.AccessToken)
+			if err != nil {
+				// handle err
+			}
+			for home := range allHomes {
+				fc.configs.HomeCollection = append(fc.configs.HomeCollection, allHomes[home])
+			}
+			for room := range allRooms {
+				fc.configs.RoomCollection = append(fc.configs.RoomCollection, allRooms[room])
+			}
+			for device := range allDevices {
+				fc.configs.DeviceCollection = append(fc.configs.DeviceCollection, allDevices[device])
+			}
+			for device := range allIndependentDevices {
+				fc.configs.IndependentDeviceCollection = append(fc.configs.IndependentDeviceCollection, allIndependentDevices[device])
+			}
+
+			msg = fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, fc.configs.DeviceCollection, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				// if response topic is not set , sending back to default application event topic
+				fc.mqt.Publish(adr, msg)
+			}
+
+			for i := 0; i < len(fc.configs.DeviceCollection); i++ {
+				log.Debug(i)
+
+				inclReport := ns.SendInclusionReport(i, fc.configs.DeviceCollection)
+
+				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
+				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
+				fc.mqt.Publish(&adr, msg)
+			}
+
+			fc.configs.SaveToFile()
 
 		case "cmd.network.get_all_nodes":
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.
@@ -225,6 +264,8 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
 			}
+
+			fc.configs.SaveToFile()
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()

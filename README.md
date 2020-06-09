@@ -1,4 +1,4 @@
-# Futurehome Mill Adapter - WORK IN PROGRESS
+# Futurehome Mill Adapter
 
 Adapter connects with api and retrieves list of homes, rooms and devices connected to your mill user.
 
@@ -17,9 +17,10 @@ pt:j1/mt:evt/rt:dev/rn:mill/ad:1/sv:mill/ad:1
 `Payload`
 ```json
     {
-    "type": "cmd.auth.login",
+    "type": "cmd.auth.set_tokens",
     "serv": "mill",
-    "props": {
+    "val_t": "str_map",
+    "val": {
         "username": "appUsername",
         "password": "appPassword",
         "access_key": "futurehome_access_key",
@@ -29,6 +30,7 @@ pt:j1/mt:evt/rt:dev/rn:mill/ad:1/sv:mill/ad:1
 ```
 
 The program will then send a http request to the mill api which returns a unique authorization code. The program will then send a new http request to the api to receive access_token, refresh_token, expireTime and refresh_expireTime. When access_token is received you can get information about all homes, rooms and devices, as well as setting temperature and/or switching devices on/off. 
+The program saves all configs such as credentials, expiretimes and devices so that you only need to use `cmd.auth.set_tokens` once. 
 
 ***
 
@@ -53,6 +55,4 @@ Type | Interface               | Value type | Description
 -----|-------------------------|------------|------------------
 in   | cmd.sensor.get_report   | null       | 
 in   | evt.sensor.report       | float      | measured temperature
-
-
 
