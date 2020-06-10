@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,11 +42,6 @@ type Configs struct {
 		ExpireTime        int64  `json:"expireTime"`         // this should be moved
 		RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
 	}
-
-	HomeCollection              []interface{}
-	RoomCollection              []interface{}
-	DeviceCollection            []interface{}
-	IndependentDeviceCollection []interface{}
 }
 
 func NewConfigs(workDir string) *Configs {
@@ -113,28 +106,4 @@ func (cf *Configs) IsConfigured() bool {
 type ConfigReport struct {
 	OpStatus string    `json:"op_status"`
 	AppState AppStates `json:"app_state"`
-}
-
-func (cf *Configs) FindDeviceFromDeviceID(nodeId string) (index int, err error) {
-	// deviceFound := false
-	for i := 0; i < len(cf.DeviceCollection); i++ {
-		val := reflect.ValueOf(cf.DeviceCollection[i])
-		deviceId := strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
-		if deviceId == nodeId {
-			// deviceFound = true
-			index = i
-			return index, nil
-		}
-	}
-	for i := 0; i < len(cf.IndependentDeviceCollection); i++ {
-		val := reflect.ValueOf(cf.IndependentDeviceCollection[i])
-		deviceId := strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
-		if deviceId == nodeId {
-			index = i
-			return index, nil
-		}
-	}
-	index = 9999 // using err did not work
-	log.Debug(err)
-	return index, err
 }
