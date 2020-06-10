@@ -30,6 +30,8 @@ type AppConfig struct {
 	Hidden      bool              `json:"hidden"`
 }
 
+type MultiLingualLabel map[string]string
+
 func (b *AppConfig) Hide() {
 	b.Hidden = true
 }

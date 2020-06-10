@@ -56,6 +56,11 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	client := mill.Client{}
 	ns := model.NetworkService{}
 
+	if fc.configs.IsConfigured() {
+		fc.appLifecycle.SetConnectionState(model.ConnStateConnected)
+		fc.appLifecycle.SetConfigState(model.ConfigStateConfigured)
+	}
+
 	// Get new tokens if expires_in is exceeded. expireTime lasts for two hours, refreshExpireTime lasts for 30 days.
 	if fc.configs.Auth.ExpireTime != 0 {
 		millis := time.Now().UnixNano() / 1000000
@@ -154,35 +159,23 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			fc.configs.AccessKey = value["access_key"]
 			fc.configs.SecretToken = value["secret_token"]
 
-			status := model.AuthStatus{
-				Status:    "",
-				ErrorText: "",
-				ErrorCode: "",
-			}
-
 			if fc.configs.Username != "" && fc.configs.Password != "" && fc.configs.AccessKey != "" && fc.configs.SecretToken != "" {
 				// Send api requests to get authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
+				fc.appLifecycle.SetAuthState(model.AuthStateInProgress)
 				fc.configs.Auth.AuthorizationCode, fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.NewClient(fc.configs.AccessKey, fc.configs.SecretToken, fc.configs.Password, fc.configs.Username)
 			} else {
-				status.Status = "ERROR"
-				status.ErrorText = "Empty username or password or access_key or secret_token"
-				log.Debug(status.ErrorText)
+				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 			}
 			if fc.configs.Auth.AuthorizationCode == "" {
-				status.Status = model.AuthStateNotAuthenticated
-				log.Debug("No authorization code received")
+				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 			} else {
-				status.Status = model.AuthStateAuthenticated
+				fc.appLifecycle.SetAuthState(model.AuthStateAuthenticated)
 			}
 			if fc.configs.Auth.AccessToken != "" && fc.configs.Auth.RefreshToken != "" {
 				log.Debug("All tokens received and saved.")
-			} else {
-				status.Status = "ERROR"
-				status.ErrorText = "Empty accessToken or refreshToken"
-				log.Debug(status.ErrorText)
 			}
 
-			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, status, nil, nil, newMsg.Payload)
+			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, fc.appLifecycle.GetAllStates(), nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
@@ -234,7 +227,46 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 			if mode == "manifest_state" {
 				manifest.AppState = *fc.appLifecycle.GetAllStates()
+				fc.configs.ConnectionState = string(fc.appLifecycle.ConnectionState())
+				fc.configs.Errors = fc.appLifecycle.LastError()
 				manifest.ConfigState = fc.configs
+			}
+			if errConf := manifest.GetAppConfig("errors"); errConf != nil {
+				if fc.configs.Errors == "" {
+					errConf.Hidden = true
+				} else {
+					errConf.Hidden = false
+				}
+			}
+
+			connectButton := manifest.GetButton("connect")
+			disconnectButton := manifest.GetButton("disconnect")
+			if connectButton != nil && disconnectButton != nil {
+				if fc.appLifecycle.ConnectionState() == model.ConnStateConnected {
+					connectButton.Hidden = true
+					disconnectButton.Hidden = false
+				} else {
+					connectButton.Hidden = false
+					disconnectButton.Hidden = true
+				}
+			}
+			if syncButton := manifest.GetButton("sync"); syncButton != nil {
+				if fc.appLifecycle.ConnectionState() == model.ConnStateConnected {
+					syncButton.Hidden = false
+				} else {
+					syncButton.Hidden = true
+				}
+			}
+			connBlock := manifest.GetUIBlock("connect")
+			settingsBlock := manifest.GetUIBlock("settings")
+			if connBlock != nil && settingsBlock != nil {
+				if fc.states.DeviceCollection != nil {
+					connBlock.Hidden = false
+					settingsBlock.Hidden = false
+				} else {
+					connBlock.Hidden = true
+					settingsBlock.Hidden = true
+				}
 			}
 			msg := fimpgo.NewMessage("evt.app.manifest_report", model.ServiceName, fimpgo.VTypeObject, manifest, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {

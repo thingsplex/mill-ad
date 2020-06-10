@@ -54,6 +54,15 @@ func main() {
 	fimpRouter := router.NewFromFimpRouter(mqtt, appLifecycle, configs, states)
 	fimpRouter.Start()
 
+	appLifecycle.SetConnectionState(model.ConnStateDisconnected)
+	if configs.IsConfigured() && err == nil {
+		appLifecycle.SetConfigState(model.ConfigStateConfigured)
+		appLifecycle.SetAppState(model.AppStateRunning, nil)
+		appLifecycle.SetConnectionState(model.ConnStateConnected)
+	} else {
+		appLifecycle.SetConfigState(model.ConfigStateNotConfigured)
+		appLifecycle.SetAppState(model.AppStateNotConfigured, nil)
+	}
 	//------------------ Sample code --------------------------------------
 
 	msg := fimpgo.NewFloatMessage("evt.sensor.report", "temp_sensor", float64(35.5), nil, nil, nil)
@@ -93,7 +102,6 @@ func main() {
 			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
 		}
 		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
-		log.Debug(time.Second)
 	}
 
 	mqtt.Stop()

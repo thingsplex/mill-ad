@@ -70,9 +70,14 @@ type Lifecycle struct {
 	systemEventBus   map[string]SystemEventChannel
 	appState         State
 	previousAppState State
+	lastError        string
 	connectionState  State
 	authState        State
 	configState      State
+}
+
+func (al *Lifecycle) LastError() string {
+	return al.lastError
 }
 
 func NewAppLifecycle() *Lifecycle {

@@ -42,6 +42,9 @@ type Configs struct {
 		ExpireTime        int64  `json:"expireTime"`         // this should be moved
 		RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
 	}
+
+	ConnectionState string `json:"connection_state"`
+	Errors          string `json:"errors"`
 }
 
 func NewConfigs(workDir string) *Configs {
@@ -99,8 +102,11 @@ func (cf *Configs) LoadDefaults() error {
 }
 
 func (cf *Configs) IsConfigured() bool {
-	// TODO : Add logic here
-	return true
+	if cf.Auth.AccessToken != "" {
+		return true
+	} else {
+		return false
+	}
 }
 
 type ConfigReport struct {
