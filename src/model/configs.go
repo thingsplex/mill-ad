@@ -42,9 +42,6 @@ type Configs struct {
 		ExpireTime        int64  `json:"expireTime"`         // this should be moved
 		RefreshExpireTime int64  `json:"refresh_expireTime"` // this should be moved
 	}
-
-	ConnectionState string `json:"connection_state"`
-	Errors          string `json:"errors"`
 }
 
 func NewConfigs(workDir string) *Configs {
