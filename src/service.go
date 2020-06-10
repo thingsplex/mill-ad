@@ -3,7 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"reflect"
 	"time"
+
+	"github.com/thingsplex/mill/mill"
 
 	"github.com/futurehomeno/fimpgo"
 	"github.com/futurehomeno/fimpgo/discovery"
@@ -24,11 +27,18 @@ func main() {
 	}
 	appLifecycle := model.NewAppLifecycle()
 	configs := model.NewConfigs(workDir)
+	states := model.NewStates(workDir)
 	err := configs.LoadFromFile()
 	if err != nil {
 		fmt.Print(err)
 		panic("Can't load config file.")
 	}
+	err = states.LoadFromFile()
+	if err != nil {
+		fmt.Print(err)
+		panic("Can't load state file.")
+	}
+	mill := mill.Client{}
 
 	utils.SetupLog(configs.LogFile, configs.LogLevel, configs.LogFormat)
 	log.Info("--------------Starting mill----------------")
@@ -41,7 +51,7 @@ func main() {
 	responder.RegisterResource(model.GetDiscoveryResource())
 	responder.Start()
 
-	fimpRouter := router.NewFromFimpRouter(mqtt, appLifecycle, configs)
+	fimpRouter := router.NewFromFimpRouter(mqtt, appLifecycle, configs, states)
 	fimpRouter.Start()
 
 	//------------------ Sample code --------------------------------------
@@ -59,14 +69,31 @@ func main() {
 
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
-		// Configure custom resources here
-		//if err := conFimpRouter.Start(); err !=nil {
-		//	appLifecycle.PublishEvent(model.EventConfigError,"main",nil)
-		//}else {
-		//	appLifecycle.WaitForState(model.StateConfiguring,"main")
-		//}
-		//TODO: Add logic here
+		log.Info("Starting ticker")
+		ticker := time.NewTicker(1 * time.Minute)
+		for ; true; <-ticker.C {
+			// configs.LoadFromFile()
+			states.LoadFromFile()
+			for device := range states.DeviceCollection {
+				device := reflect.ValueOf(states.DeviceCollection[device])
+				deviceId := device.Interface().(map[string]interface{})["deviceId"]
+				deviceIdString := fmt.Sprintf("%v", deviceId)
+				currentTemp := device.Interface().(map[string]interface{})["currentTemp"]
+
+				val := currentTemp
+				props := fimpgo.Props{}
+				props["unit"] = "C"
+
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "sensor_temp", ServiceAddress: deviceIdString}
+				msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, val, props, nil, nil)
+				mqtt.Publish(adr, msg)
+				states.SaveToFile()
+			}
+			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
+			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
+		}
 		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
+		log.Debug(time.Second)
 	}
 
 	mqtt.Stop()

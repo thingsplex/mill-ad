@@ -21,10 +21,11 @@ type FromFimpRouter struct {
 	instanceID   string
 	appLifecycle *model.Lifecycle
 	configs      *model.Configs
+	states       *model.States
 }
 
-func NewFromFimpRouter(mqt *fimpgo.MqttTransport, appLifecycle *model.Lifecycle, configs *model.Configs) *FromFimpRouter {
-	fc := FromFimpRouter{inboundMsgCh: make(fimpgo.MessageCh, 5), mqt: mqt, appLifecycle: appLifecycle, configs: configs}
+func NewFromFimpRouter(mqt *fimpgo.MqttTransport, appLifecycle *model.Lifecycle, configs *model.Configs, states *model.States) *FromFimpRouter {
+	fc := FromFimpRouter{inboundMsgCh: make(fimpgo.MessageCh, 5), mqt: mqt, appLifecycle: appLifecycle, configs: configs, states: states}
 	fc.mqt.RegisterChannel("ch1", fc.inboundMsgCh)
 	return &fc
 }
@@ -53,7 +54,6 @@ func (fc *FromFimpRouter) Start() {
 func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	config := mill.Config{}
 	client := mill.Client{}
-	authStatus := model.AuthStatus{}
 	ns := model.NetworkService{}
 
 	// Get new tokens if expires_in is exceeded. expireTime lasts for two hours, refreshExpireTime lasts for 30 days.
@@ -67,12 +67,10 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	}
 
 	// Update home- room- and devicelists
-	if authStatus.Status == model.AuthStateAuthenticated {
-		fc.configs.DeviceCollection, fc.configs.RoomCollection, fc.configs.HomeCollection, fc.configs.IndependentDeviceCollection = nil, nil, nil, nil
-		fc.configs.HomeCollection, fc.configs.RoomCollection, fc.configs.DeviceCollection, fc.configs.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.configs.HomeCollection, fc.configs.RoomCollection, fc.configs.DeviceCollection, fc.configs.IndependentDeviceCollection)
-		fc.configs.SaveToFile()
-		log.Debug("new lists saved")
-	}
+	fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
+	fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection)
+	fc.states.SaveToFile()
+	log.Debug("new lists saved")
 
 	log.Debug("New fimp msg")
 	addr := strings.Replace(newMsg.Addr.ServiceAddress, "_0", "", 1)
@@ -124,12 +122,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		addr = strings.Replace(addr, "l", "", 1)
 		switch newMsg.Payload.Type {
 		case "cmd.sensor.get_report":
-			deviceIndex, err := fc.configs.FindDeviceFromDeviceID(addr)
+			deviceIndex, err := fc.states.FindDeviceFromDeviceID(addr)
 			if err != nil {
 				// handle err
 			}
-			device := reflect.ValueOf(fc.configs.DeviceCollection[deviceIndex])
-			currentTemp := device.FieldByName("CurrentTemp").Interface()
+			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
+			currentTemp := device.FieldByName("CurrentTemp").Interface().(float32)
 
 			val := currentTemp
 			props := fimpgo.Props{}
@@ -191,35 +189,36 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 			// Delete previously saved nodes, if there are any for some reason
-			fc.configs.DeviceCollection, fc.configs.RoomCollection, fc.configs.HomeCollection, fc.configs.IndependentDeviceCollection = nil, nil, nil, nil
-			fc.configs.HomeCollection, fc.configs.RoomCollection, fc.configs.DeviceCollection, fc.configs.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.configs.HomeCollection, fc.configs.RoomCollection, fc.configs.DeviceCollection, fc.configs.IndependentDeviceCollection)
+			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
+			fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection)
 
-			msg = fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, fc.configs.DeviceCollection, nil, nil, newMsg.Payload)
+			msg = fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, fc.states.DeviceCollection, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
 			}
 
-			for i := 0; i < len(fc.configs.DeviceCollection); i++ {
-				inclReport := ns.SendInclusionReport(i, fc.configs.DeviceCollection)
+			for i := 0; i < len(fc.states.DeviceCollection); i++ {
+				inclReport := ns.SendInclusionReport(i, fc.states.DeviceCollection)
 
 				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
 				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
 				fc.mqt.Publish(&adr, msg)
 			}
-
 			fc.configs.SaveToFile()
+			fc.states.SaveToFile()
 
 		case "cmd.network.get_all_nodes":
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.
+			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
+			fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection)
 
-			msg := fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, fc.configs.DeviceCollection, nil, nil, newMsg.Payload)
+			msg := fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, fc.states.DeviceCollection, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
 			}
-
-			fc.configs.SaveToFile()
+			fc.states.SaveToFile()
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
@@ -290,6 +289,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				log.SetLevel(logLevel)
 				fc.configs.LogLevel = level
 				fc.configs.SaveToFile()
+				fc.states.SaveToFile()
 			}
 			log.Info("Log level updated to = ", logLevel)
 
@@ -330,13 +330,13 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			if err != nil {
 				// handle err
 			}
-			nodeID, err := fc.configs.FindDeviceFromDeviceID(deviceID)
+			nodeID, err := fc.states.FindDeviceFromDeviceID(deviceID)
 			if err != nil { // normal error handling did not work for some reason, find out why
 				// handle error
 				log.Debug("error") // this never executes
 			}
 			if nodeID != 9999 { // using this method instead
-				inclReport := ns.SendInclusionReport(nodeID, fc.configs.DeviceCollection)
+				inclReport := ns.SendInclusionReport(nodeID, fc.states.DeviceCollection)
 
 				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
 				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}

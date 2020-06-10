@@ -27,7 +27,7 @@ type AppConfig struct {
 	Val         Value             `json:"val"`
 	IsRequired  bool              `json:"is_required"`
 	ConfigPoint string            `json:"config_point"`
-	Hidden      bool              `json:"hidden"` //
+	Hidden      bool              `json:"hidden"`
 }
 
 func (b *AppConfig) Hide() {

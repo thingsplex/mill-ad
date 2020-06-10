@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/thingsplex/mill/model"
 )
 
 const (
@@ -60,7 +59,6 @@ type Config struct {
 
 // Client to make request to Mill API
 type Client struct {
-	configs      *model.Configs
 	httpResponse *http.Response
 
 	Data struct {
@@ -320,13 +318,10 @@ func processHTTPResponse(resp *http.Response, err error, holder interface{}) err
 }
 
 func (c *Client) UpdateLists(accessToken string, hc []interface{}, rc []interface{}, dc []interface{}, idc []interface{}) (homelist []interface{}, roomlist []interface{}, devicelist []interface{}, independentdevicelist []interface{}) {
-	// c.configs.DeviceCollection, c.configs.RoomCollection, c.configs.HomeCollection, c.configs.IndependentDeviceCollection = nil, nil, nil, nil
-
 	allDevices, allRooms, allHomes, allIndependentDevices, err := c.GetAllDevices(accessToken)
 	if err != nil {
 		// handle err
 	}
-	log.Debug(allDevices)
 	for home := range allHomes {
 		hc = append(hc, allHomes[home])
 	}
