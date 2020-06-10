@@ -102,7 +102,6 @@ func main() {
 			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
 		}
 		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
-		log.Debug(time.Second)
 	}
 
 	mqtt.Stop()
