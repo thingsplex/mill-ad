@@ -70,7 +70,7 @@ func main() {
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
 		log.Info("Starting ticker")
-		ticker := time.NewTicker(1 * time.Minute)
+		ticker := time.NewTicker(5 * time.Minute)
 		for ; true; <-ticker.C {
 			// configs.LoadFromFile()
 			states.LoadFromFile()
