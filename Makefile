@@ -5,7 +5,7 @@ arch="armhf"
 remote_host = "fh@cube.local"
 
 clean:
-	-rm mill
+	-rm ./src/mill
 
 build-go:
 	cd ./src;go build -o mill service.go;cd ../

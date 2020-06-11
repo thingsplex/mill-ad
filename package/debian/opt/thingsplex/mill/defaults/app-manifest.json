@@ -1,53 +1,47 @@
 {
   "configs":[
     {
-      "id": "param_1",
-      "label": {"en": "Param 1"},
-      "val_t": "bool",
-      "ui": {
-        "type": "list_radio",
-        "select": [{"val": true,"label": {"en": "Option 1"}},{"val": false,"label": {"en": "Option 2"}}]
-      },
-      "val": {
-        "default": false
-      },
-      "is_required": true,
-      "hidden":false,
-      "config_point": "init"
-    },
-    {
-      "id": "param_2",
-      "label": {"en": "Parameter 2"},
+      "id": "host",
+      "label": {"en": "IP or host name of Mill house (??)"},
       "val_t": "string",
       "ui": {
-        "type": "select_horizontal",
-        "select": [{"val": "o1","label": {"en": "Option 1"}},{"val": "o2","label":{"en": "Option 2"}}]
+        "type": "input_string"
       },
       "val": {
-        "default": "o1"
+        "default": ""
       },
       "is_required": true,
-      "hidden":false,
       "config_point": "any"
     },
     {
-      "id": "param_3",
-      "label": {"en": "Parameter 3"},
-      "val_t": "str_map",
+      "id": "connection_state",
+      "label": {"en": "State"},
+      "val_t": "string",
       "ui": {
-        "type": "list_checkbox",
-        "select": [{"val": "o1","label": {"en": "Option 1"}},{"val": "o2","label": {"en": "Option 1"}},{"val":"o3", "label": {"en": "Option 3"}}]
+        "type": "text"
       },
       "val": {
-        "default": ["o1","o2"]
+        "default": ""
       },
       "is_required": true,
-      "hidden":false,
-      "config_point": "init"
+      "config_point": "any"
     },
     {
-      "id": "param_4",
-      "label": {"en": "Please enter the code into Apple Home app"},
+      "id": "errors",
+      "label": {"en": "Errors"},
+      "val_t": "string",
+      "ui": {
+        "type": "text_error"
+      },
+      "val": {
+        "default": ""
+      },
+      "is_required": true,
+      "config_point": "any"
+    },
+    {
+      "id": "devicecollection",
+      "label": {"en": "List of discovered devices"},
       "val_t": "string",
       "ui": {
         "type": "input_readonly"
@@ -55,126 +49,74 @@
       "val": {
         "default": ""
       },
-      "is_required": false,
-      "hidden":false,
-      "config_point": "connection"
+      "is_required": true,
+      "config_point": "any"
     }
   ],
   "ui_buttons": [
     {
-      "id":"fh.default.sync",
-      "label": {"en": "Sync"},
+      "id":"connect",
+      "label": {"en": "Connect"},
+      "req": {
+        "serv":"mill",
+        "intf_t": "cmd.auth.set_tokens",
+        "val": ""
+      },
+      "hidden": false
+    }, {
+      "id":"disconnect",
+      "label": {"en": "Disconnect"},
       "req": {
         "serv":"hue",
-        "intf_t": "cmd.system.sync",
-        "val": "action1"
+        "intf_t": "cmd.system.disconnect",
+        "val": ""
       },
-      "hidden":false
-    },
-    {
-      "id":"reconnect",
-      "label": {"en": "Reconnect"},
-      "req": {
-        "serv":"hue",
-        "intf_t": "cmd.system.reconnect",
-        "val": "action2"
-      },
-      "hidden":false
+      "hidden": false
     },{
-      "id":"factory_reset",
-      "label": {"en": "Factory reset"},
+      "id":"sync",
+      "label": {"en": "Re-sync devices"},
       "req": {
-        "serv":"app-one",
-        "intf_t": "cmd.app.factory_reset",
-        "val": "action2"
+        "serv":"hue",
+        "intf_t": "cmd.network.get_all_nodes",
+        "val": ""
       },
-      "hidden":false
+      "hidden": false
     }
 
   ],
   "ui_blocks": [
     {
-      "id": "block_1",
-      "header": {"en": "App configuration"},
-      "text": {"en": ""},
-      "configs": ["param_1","param_2","param_2"],
-      "buttons": ["reconnect"],
-      "footer": {"en": "footer text"},
-      "hidden":false
+      "id":"connect",
+      "header": {"en": "Mill connection"},
+      "text": {"en": "Note that all devices will be set to individual controll in Mill app"},
+      "configs": ["host","connection_state","errors"],
+      "buttons": ["connect","disconnect"],
+      "footer": {"en": ""}
     },
     {
-      "id": "block_2",
-      "header": {"en": "Security"},
-      "text": {"en": ""},
-      "configs": ["param_4"],
-      "buttons": [],
-      "footer": {"en": "footer text"},
-      "hidden":false
-    },{
-      "id": "block_3",
-      "header": {"en": "Factory reset"},
-      "text": {"en": "The operation can't be undone"},
-      "configs": [],
-      "buttons": ["factory_reset"],
-      "footer": {"en": ""},
-      "hidden":false
+      "id":"discover",
+      "header": {"en": "Discover Mill devices"},
+      "text": {"en": "The app will try to discover new devices"},
+      "configs": ["homecollection"],
+      "buttons": ["discover"],
+      "footer": {"en": ""}
     }
   ],
   "auth": {
-    "type": "password",
-    "code_grant_login_page_url" : "",
+    "type": "",
     "redirect_url": "",
     "client_id": "",
-    "secret": "",
     "partner_id": "",
     "auth_endpoint": ""
   },
-  "init_flow":["auth","connect"],
+  "init_flow":["connect"],
   "services": [
     {
-      "name": "hue",
+      "name": "mill",
       "alias": "Network managment",
-      "address": "/rt:ad/rn:hue/ad:1",
+      "address": "/rt:ad/rn:mill/ad:1",
       "interfaces": [
         {
-          "intf_t": "in",
-          "msg_t": "cmd.app.get_manifest",
-          "val_t": "null",
-          "ver": "1"
-        },
-        {
-          "intf_t": "in",
-          "msg_t": "cmd.system.sync",
-          "val_t": "null",
-          "ver": "1"
-        },
-        {
-          "intf_t": "in",
-          "msg_t": "cmd.system.reconnect",
-          "val_t": "null",
-          "ver": "1"
-        },
-        {
-          "intf_t": "out",
-          "msg_t": "evt.app.manifest_report",
-          "val_t": "object",
-          "ver": "1"
-        },{
-          "intf_t": "out",
-          "msg_t": "cmd.app.get_full_state",
-          "val_t": "string",
-          "ver": "1"
-        },{
-          "intf_t": "out",
-          "msg_t": "cmd.app.full_state_report",
-          "val_t": "object",
-          "ver": "1"
-        },{
-          "intf_t": "in",
-          "msg_t": "cmd.config.extended_set",
-          "val_t": "str_map",
-          "ver": "1"
-        },{
           "intf_t": "in",
           "msg_t": "cmd.auth.set_tokens",
           "val_t": "str_map",
@@ -182,7 +124,7 @@
         },
         {
           "intf_t": "out",
-          "msg_t": "evt.auth.login_report",
+          "msg_t": "evt.auth.status_report",
           "val_t": "string",
           "ver": "1"
         },
@@ -193,9 +135,99 @@
           "ver": "1"
         },
         {
+          "intf_t": "out",
+          "msg_t": "evt.network.all_nodes_report",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.app.get_manifest",
+          "val_t": "null",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "evt.app.manifest_report",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.app.get_state",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "evt.app.manifest_report",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.config.get_extended_reoprt",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "evt.config.extended_report",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.config.extended_set",
+          "val_t": "str_map",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "evt.app.config_report",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.log.set_level",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.system.reconnect",
+          "val_t": "null",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "evt.app.config_action_report",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.app.factory_reset",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "cmd.app.config_action_report",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
           "intf_t": "in",
           "msg_t": "cmd.thing.get_inclusion_report",
           "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "evt.thing.inclusion_report",
+          "val_t": "object",
           "ver": "1"
         },
         {
@@ -207,30 +239,6 @@
         {
           "intf_t": "in",
           "msg_t": "cmd.thing.delete",
-          "val_t": "string",
-          "ver": "1"
-        },
-        {
-          "intf_t": "out",
-          "msg_t": "evt.thing.inclusion_report",
-          "val_t": "object",
-          "ver": "1"
-        },
-        {
-          "intf_t": "out",
-          "msg_t": "evt.thing.exclusion_report",
-          "val_t": "object",
-          "ver": "1"
-        },
-        {
-          "intf_t": "out",
-          "msg_t": "evt.network.all_nodes_report",
-          "val_t": "object",
-          "ver": "1"
-        },
-        {
-          "intf_t": "in",
-          "msg_t": "cmd.log.set_level",
           "val_t": "string",
           "ver": "1"
         }
