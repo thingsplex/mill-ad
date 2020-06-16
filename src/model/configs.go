@@ -29,6 +29,7 @@ type Configs struct {
 	ConfiguredBy       string `json:"configured_by"`
 	Param1             bool   `json:"param_1"`
 	Param2             string `json:"param_2"`
+	PollTimeSec        int    `json:"poll_time_sec"`
 
 	Username    string `json:"username"`     // this should be moved
 	Password    string `json:"password"`     // this should be moved

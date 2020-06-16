@@ -1,11 +1,15 @@
 {
-  "instance_address":"1",
-  "mqtt_server_uri":"tcp://gatewayIP:1884",
-  "mqtt_client_id_prefix":"mill",
-  "mqtt_server_username":"mqttUsername",
-  "mqtt_server_password":"mqttPassword",
-  "work_dir": "../testdata",
+  "instance_address": "1",
+  "mqtt_server_uri": "tcp://gatewayIP:1884",
+  "mqtt_server_username": "mqttusername",
+  "mqtt_server_password": "mqttpassword",
+  "mqtt_client_id_prefix": "mill",
   "log_file": "",
   "log_level": "debug",
-  "log_format": "text"
+  "log_format": "text",
+  "configured_at": "2020-06-16T09:46:21+02:00",
+  "configured_by": "auto",
+  "param_1": false,
+  "param_2": "",
+  "poll_time_sec": 120
 }

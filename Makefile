@@ -5,7 +5,8 @@ arch="armhf"
 remote_host = "fh@cube.local"
 
 clean:
-	-rm ./src/mill
+	-rm  -f ./src/mill
+	find . -name '.DS_Store' -type f -delete
 
 build-go:
 	cd ./src;go build -o mill service.go;cd ../
@@ -35,8 +36,12 @@ clean-deb:
 package-deb-doc:clean-deb
 	@echo "Packaging application using Thingsplex debian package layout"
 	chmod a+x package/debian/DEBIAN/*
+	mkdir -p package/debian/var/log/futurehome/mill package/debian/var/lib/futurehome/mill/data package debian/usr/bin
+	mkdir -p package/build
 	cp ./src/mill package/debian/opt/thingsplex/mill
-	cp VERSION package/debian/opt/thingsplex/mill
+	# cp ./src/mill package/debian/usr/bin/mill
+	# cp VERSION package/debian/opt/thingsplex/mill
+	cp $(version_file) package/debian/var/lib/futurehome/mill
 	docker run --rm -v ${working_dir}:/build -w /build --name debuild debian dpkg-deb --build package/debian
 	@echo "Done"
 
@@ -46,7 +51,7 @@ package-docker-amd:build-go-amd
 
 deb-arm : clean configure-arm build-go-arm package-deb-doc
 	@echo "Building Thingsplex ARM package"
-	mv package/debian.deb package/build/mill_$(version)_armhf.deb
+	@mv package/debian.deb package/build/mill_$(version)_armhf.deb
 
 deb-amd : configure-amd64 build-go-amd package-deb-doc
 	@echo "Building Thingsplex AMD package"

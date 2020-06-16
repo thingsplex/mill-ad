@@ -11,7 +11,8 @@ import (
 
 	"github.com/futurehomeno/fimpgo"
 	log "github.com/sirupsen/logrus"
-	"github.com/thingsplex/mill/mill"
+
+	mill "github.com/thingsplex/mill/millapi"
 	"github.com/thingsplex/mill/model"
 )
 
@@ -201,6 +202,16 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 			fc.configs.SaveToFile()
 			fc.states.SaveToFile()
+
+			// send fake evt.setpoint.report to init UI in futurehome
+			val := map[string]interface{}{
+				"type":  []string{"heat"},
+				"temp:": []string{"10"},
+				"unit":  []string{"C"},
+			}
+			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+			msg = fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
+			fc.mqt.Publish(adr, msg)
 
 		case "cmd.network.get_all_nodes":
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.

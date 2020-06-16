@@ -6,11 +6,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/thingsplex/mill/mill"
-
 	"github.com/futurehomeno/fimpgo"
 	"github.com/futurehomeno/fimpgo/discovery"
 	log "github.com/sirupsen/logrus"
+	mill "github.com/thingsplex/mill/millapi"
 	"github.com/thingsplex/mill/model"
 	"github.com/thingsplex/mill/router"
 	"github.com/thingsplex/mill/utils"
@@ -65,7 +64,7 @@ func main() {
 	}
 	//------------------ Sample code --------------------------------------
 
-	msg := fimpgo.NewFloatMessage("evt.sensor.report", "temp_sensor", float64(35.5), nil, nil, nil)
+	msg := fimpgo.NewFloatMessage("evt.sensor.report", "temp_sensor", float64(23), nil, nil, nil)
 	adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: "mill", ResourceAddress: "1", ServiceName: "temp_sensor", ServiceAddress: "300"}
 	mqtt.Publish(&adr, msg)
 	if err != nil {
@@ -79,7 +78,7 @@ func main() {
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
 		log.Info("Starting ticker")
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(time.Duration(configs.PollTimeSec) * time.Second)
 		for ; true; <-ticker.C {
 			// configs.LoadFromFile()
 			states.LoadFromFile()
