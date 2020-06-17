@@ -97,24 +97,21 @@ func main() {
 				msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, tempVal, props, nil, nil)
 				mqtt.Publish(adr, msg)
 
-				// Issue here, immediately after ticker excecutes first time the device changes appearance to gray screen and can no longer be controlled.
-				// ---------- Removing this code solves the issue, but I need this report to be sendt -----------
-				// Commented out to enable functionality in the meantime.
-				// setpointTemp := device.Interface().(map[string]interface{})["holidayTemp"]
-				// if setpointTemp != 0 {
-				// 	setpointVal := map[string]interface{}{
-				// 		"type": "heat",
-				// 		"temp": setpointTemp,
-				// 		"unit": "C",
-				// 	}
-				// 	adr = &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: deviceId}
-				// 	msg = fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, setpointVal, nil, nil, nil)
-				// 	mqtt.Publish(adr, msg)
-				// }
+				setpointTemp := fmt.Sprintf("%f", device.Interface().(map[string]interface{})["holidayTemp"])
+
+				if setpointTemp != "0" {
+					setpointVal := map[string]interface{}{
+						"type": "heat",
+						"temp": setpointTemp,
+						"unit": "C",
+					}
+					adr = &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: deviceId}
+					msg = fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, setpointVal, nil, nil, nil)
+					mqtt.Publish(adr, msg)
+				}
 				// -----------------------------------------------------------------------------------------------
 				states.SaveToFile()
 			}
-
 		}
 		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
 	}

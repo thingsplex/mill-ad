@@ -78,13 +78,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
 	fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection)
 	fc.states.SaveToFile()
-	log.Debug("new lists saved")
-
+	log.Debug(" ")
 	log.Debug("New fimp msg")
 	addr := strings.Replace(newMsg.Addr.ServiceAddress, "_0", "", 1)
 	switch newMsg.Payload.Service {
 	case "thermostat":
-		log.Debug("thermostat")
+		log.Debug("Service: thermostat")
 		addr = strings.Replace(addr, "l", "", 1)
 		switch newMsg.Payload.Type {
 		case "cmd.setpoint.set":
@@ -144,7 +143,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		}
 
 	case "sensor_temp":
-		log.Debug("sensor_temp")
+		log.Debug("Service: sensor_temp")
 		addr = strings.Replace(addr, "l", "", 1)
 		switch newMsg.Payload.Type {
 		case "cmd.sensor.get_report":
