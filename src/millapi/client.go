@@ -84,6 +84,7 @@ type Device struct {
 	SubDomainID          int     `json:"subDomainId"`
 	ControlType          int     `json:"controlType"`
 	CurrentTemp          float32 `json:"currentTemp"`
+	SetpointTemp         int64   `json:"holidayTemp"`
 }
 
 type Home struct {
@@ -131,6 +132,7 @@ func (config *Config) NewClient(accessKey string, secretToken string, password s
 	if err != nil {
 		// handle err
 		log.Debug("request error")
+		log.Debug(fmt.Errorf("Can't post authCode request, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_key", accessKey)
@@ -146,6 +148,7 @@ func (config *Config) NewClient(accessKey string, secretToken string, password s
 	req, err = http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't post accessToken request, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Authorization_code", authorizationCode)
@@ -157,7 +160,9 @@ func (config *Config) NewClient(accessKey string, secretToken string, password s
 	refreshToken := config.Data.RefreshToken
 	expireTime := config.Data.ExpireTime
 	refreshExpireTime := config.Data.RefreshExpireTime
-
+	if err != nil {
+		return "", "", "", 0, 0
+	}
 	defer resp.Body.Close()
 	return authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
 }
@@ -167,6 +172,7 @@ func (config *Config) RefreshToken(refreshToken string) (string, string, int64, 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't post refreshToken request, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 
@@ -190,12 +196,14 @@ func (c *Client) GetAllDevices(accessToken string) ([]Device, []Room, []Home, []
 	var allIndependentDevices []Device
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't get home list, error: ", err))
 	}
 	for home := range homes.Data.Homes {
 		allHomes = append(allHomes, homes.Data.Homes[home])
 		rooms, err := c.GetRoomList(accessToken, homes.Data.Homes[home].HomeID)
 		if err != nil {
 			// handle err
+			log.Debug(fmt.Errorf("Can't get room list, error: ", err))
 		}
 		for room := range rooms.Data.Rooms {
 			allRooms = append(allRooms, rooms.Data.Rooms[room])
@@ -206,12 +214,14 @@ func (c *Client) GetAllDevices(accessToken string) ([]Device, []Room, []Home, []
 			}
 			if err != nil {
 				// handle err
+				log.Debug(fmt.Errorf("Can't get device list, error: ", err))
 			}
 		}
 		// Get all independent devices
 		independentDevices, err := c.GetIndependentDevices(accessToken, homes.Data.Homes[home].HomeID)
 		if err != nil {
 			// handle err
+			log.Debug(fmt.Errorf("Can't get independent device list, error: ", err))
 		}
 		for device := range independentDevices.Data.IndependentDevices {
 			allDevices = append(allDevices, independentDevices.Data.IndependentDevices[device])
@@ -226,6 +236,7 @@ func (c *Client) GetHomeList(accessToken string) (*Client, error) {
 	req, err := http.NewRequest("POST", selectHomeListURL, nil)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't get home list, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -242,6 +253,7 @@ func (c *Client) GetRoomList(accessToken string, homeID int64) (*Client, error) 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't get room list, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -256,6 +268,7 @@ func (c *Client) GetDeviceList(accessToken string, roomID int64) (*Client, error
 	url := fmt.Sprintf("%s%s%d", selectDevicebyRoomURL, "?roomId=", roomID)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
+		log.Debug(fmt.Errorf("Can't get device list, error: ", err))
 		// handle err
 	}
 	req.Header.Set("Accept", "*/*")
@@ -271,6 +284,7 @@ func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Clien
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't get independent device list, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -285,6 +299,7 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't controll device, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -299,10 +314,11 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {
-	defer resp.Body.Close()
 	if err != nil {
-		return err
+		log.Debug(fmt.Errorf("API does not respond"))
+		return fmt.Errorf("API does not respond")
 	}
+	defer resp.Body.Close()
 	// check http return code
 	if resp.StatusCode != 200 {
 		//bytes, _ := ioutil.ReadAll(resp.Body)
@@ -321,6 +337,7 @@ func (c *Client) UpdateLists(accessToken string, hc []interface{}, rc []interfac
 	allDevices, allRooms, allHomes, allIndependentDevices, err := c.GetAllDevices(accessToken)
 	if err != nil {
 		// handle err
+		log.Debug(fmt.Errorf("Can't update lists, error: ", err))
 	}
 	for home := range allHomes {
 		hc = append(hc, allHomes[home])

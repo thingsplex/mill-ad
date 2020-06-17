@@ -93,8 +93,6 @@ func (ns *NetworkService) SendInclusionReport(nodeId int, DeviceCollection []int
 	device := DeviceCollection[nodeId]
 	val := reflect.ValueOf(device)
 	deviceId = strconv.FormatInt(val.FieldByName("DeviceID").Interface().(int64), 10)
-	// deviceIdint64 = val.FieldByName("DeviceID").Interface().(int64)
-	// deviceId := strconv.Itoa(deviceIdint)
 	manufacturer = "mill"
 	name = val.FieldByName("DeviceName").Interface().(string)
 	serviceAddress := fmt.Sprintf("%s", deviceId)

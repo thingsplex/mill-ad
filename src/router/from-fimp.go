@@ -38,6 +38,7 @@ func (fc *FromFimpRouter) Start() {
 	// ------ Adapter topics ---------------------------------------------
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:dev/rn:%s/ad:1/#", model.ServiceName))
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:ad/rn:%s/ad:1", model.ServiceName))
+	fc.mqt.Subscribe("pt:j1/mt:cmd/rt:ad/rn:zigbee/ad:1")
 
 	// ------ Application topic -------------------------------------------
 	//fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:app/rn:%s/ad:1",model.ServiceName))
@@ -93,6 +94,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			halfTemp, err := strconv.Atoi(valTemp[1])
 			if err != nil {
 				// handle err
+				log.Debug(fmt.Errorf("Can't convert to string, error: ", err))
 			}
 			if halfTemp > 0 {
 				newTempInt++
@@ -111,7 +113,24 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 		case "cmd.setpoint.get_report":
-			// Not possible to get from api?
+			// You can ONLY get setpoint_report from devices that are independent(!). All devices have "holiday_temp" attribute, which for some reason is set temp on independent devices.
+			// Will always be 0 if it is not an independent device.
+			deviceIndex, err := fc.states.FindDeviceFromDeviceID(addr)
+			if err != nil {
+				log.Debug(fmt.Errorf("Can't find device from deviceID, error: ", err))
+			}
+			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
+			setpointTemp := strconv.FormatInt(device.FieldByName("SetpointTemp").Interface().(int64), 10)
+			if setpointTemp != "0" {
+				val := map[string]interface{}{
+					"type": "heat",
+					"temp": setpointTemp,
+					"unit": "C",
+				}
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+				msg := fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
+				fc.mqt.Publish(adr, msg)
+			}
 
 		case "cmd.mode.set":
 			// Do we need this? Will/should allways be heat
@@ -132,6 +151,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			deviceIndex, err := fc.states.FindDeviceFromDeviceID(addr)
 			if err != nil {
 				// handle err
+				log.Debug(fmt.Errorf("Can't find device from deviceID, error: ", err))
 			}
 			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
 			currentTemp := device.FieldByName("CurrentTemp").Interface().(float32)
@@ -155,11 +175,13 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			value, err := newMsg.Payload.GetStrMapValue()
 			if err != nil {
 				// handle err
+				log.Debug(fmt.Errorf("Can't get strMapValue, error: ", err))
 			}
 			fc.configs.Username = value["username"]
 			fc.configs.Password = value["password"]
 			fc.configs.AccessKey = value["access_key"]
 			fc.configs.SecretToken = value["secret_token"]
+			fc.configs.SaveToFile()
 
 			if fc.configs.Username != "" && fc.configs.Password != "" && fc.configs.AccessKey != "" && fc.configs.SecretToken != "" {
 				// Send api requests to get authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
@@ -202,16 +224,6 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 			fc.configs.SaveToFile()
 			fc.states.SaveToFile()
-
-			// send fake evt.setpoint.report to init UI in futurehome
-			val := map[string]interface{}{
-				"type":  []string{"heat"},
-				"temp:": []string{"10"},
-				"unit":  []string{"C"},
-			}
-			adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
-			msg = fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
-			fc.mqt.Publish(adr, msg)
 
 		case "cmd.network.get_all_nodes":
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.
@@ -340,7 +352,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		case "cmd.system.reconnect":
 			// This is optional operation.
 			fc.appLifecycle.PublishEvent(model.EventConfigured, "from-fimp-router", nil)
-			//val := map[string]string{"status":status,"error":errStr}
+
 			val := model.ButtonActionResponse{
 				Operation:       "cmd.system.reconnect",
 				OperationStatus: "ok",
@@ -373,6 +385,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			deviceID, err := newMsg.Payload.GetStringValue()
 			if err != nil {
 				// handle err
+				log.Debug(fmt.Errorf("Can't get strValue, error: ", err))
 			}
 			nodeID, err := fc.states.FindDeviceFromDeviceID(deviceID)
 			if err != nil { // normal error handling did not work for some reason, find out why
@@ -390,7 +403,9 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		case "cmd.thing.inclusion":
 			//flag , _ := newMsg.Payload.GetBoolValue()
 			// TODO: This is an example . Add your logic here or remove
-
+		}
+	case "zigbee":
+		switch newMsg.Payload.Type {
 		case "cmd.thing.delete":
 			// remove device from network
 			val, err := newMsg.Payload.GetStrMapValue()
@@ -398,15 +413,17 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				log.Error("Wrong msg format")
 				return
 			}
-			deviceID, ok := val["address"]
-			if ok {
-				// TODO: This is an example . Add your logic here or remove
-				log.Info(deviceID)
-			} else {
-				log.Error("Incorrect address")
-
+			deviceID := val["address"]
+			deviceExists, err := fc.states.FindDeviceFromDeviceID(deviceID)
+			if deviceExists != 9999 {
+				val := map[string]interface{}{
+					"address": deviceID,
+				}
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
+				msg := fimpgo.NewMessage("evt.thing.exclusion_report", "mill", fimpgo.VTypeObject, val, nil, nil, nil)
+				fc.mqt.Publish(adr, msg)
+				log.Info("Device with deviceID: ", deviceID, " has been removed from network. It is still saved in adapter, so it can be reincluded by sending 'cmd.auth.set_tokens' or 'cmd.thing.get_inclusion_report'.")
 			}
 		}
-
 	}
 }

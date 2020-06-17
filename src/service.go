@@ -80,25 +80,41 @@ func main() {
 		log.Info("Starting ticker")
 		ticker := time.NewTicker(time.Duration(configs.PollTimeSec) * time.Second)
 		for ; true; <-ticker.C {
-			// configs.LoadFromFile()
+			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
+			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
+			states.SaveToFile()
 			states.LoadFromFile()
 			for device := range states.DeviceCollection {
 				device := reflect.ValueOf(states.DeviceCollection[device])
-				deviceId := device.Interface().(map[string]interface{})["deviceId"]
-				deviceIdString := fmt.Sprintf("%v", deviceId)
+				deviceId := fmt.Sprintf("%v", device.Interface().(map[string]interface{})["deviceId"])
 				currentTemp := device.Interface().(map[string]interface{})["currentTemp"]
 
-				val := currentTemp
+				tempVal := currentTemp
 				props := fimpgo.Props{}
 				props["unit"] = "C"
 
-				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "sensor_temp", ServiceAddress: deviceIdString}
-				msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, val, props, nil, nil)
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "sensor_temp", ServiceAddress: deviceId}
+				msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, tempVal, props, nil, nil)
 				mqtt.Publish(adr, msg)
+
+				// Issue here, immediately after ticker excecutes first time the device changes appearance to gray screen and can no longer be controlled.
+				// ---------- Removing this code solves the issue, but I need this report to be sendt -----------
+				// Commented out to enable functionality in the meantime.
+				// setpointTemp := device.Interface().(map[string]interface{})["holidayTemp"]
+				// if setpointTemp != 0 {
+				// 	setpointVal := map[string]interface{}{
+				// 		"type": "heat",
+				// 		"temp": setpointTemp,
+				// 		"unit": "C",
+				// 	}
+				// 	adr = &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: deviceId}
+				// 	msg = fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, setpointVal, nil, nil, nil)
+				// 	mqtt.Publish(adr, msg)
+				// }
+				// -----------------------------------------------------------------------------------------------
 				states.SaveToFile()
 			}
-			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
-			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
+
 		}
 		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
 	}
