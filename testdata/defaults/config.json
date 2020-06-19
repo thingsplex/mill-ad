@@ -8,5 +8,5 @@
   "log_file": "",
   "log_level": "debug",
   "log_format": "text",
-  "poll_time_sec": 120
+  "poll_time_min": 2
 }

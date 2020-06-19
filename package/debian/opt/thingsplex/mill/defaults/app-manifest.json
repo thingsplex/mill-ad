@@ -1,19 +1,6 @@
 {
   "configs":[
     {
-      "id": "host",
-      "label": {"en": "IP or host name of Mill house (??)"},
-      "val_t": "string",
-      "ui": {
-        "type": "input_string"
-      },
-      "val": {
-        "default": ""
-      },
-      "is_required": true,
-      "config_point": "any"
-    },
-    {
       "id": "connection_state",
       "label": {"en": "State"},
       "val_t": "string",
@@ -40,76 +27,61 @@
       "config_point": "any"
     },
     {
-      "id": "devicecollection",
-      "label": {"en": "List of discovered devices"},
+      "id": "poll_time_min",
+      "label": {"en": "Poll time in minutes"},
       "val_t": "string",
       "ui": {
-        "type": "input_readonly"
+        "type": "input_string"
       },
       "val": {
         "default": ""
       },
-      "is_required": true,
+      "is_required": false,
+      "hidden": false,
       "config_point": "any"
     }
   ],
   "ui_buttons": [
     {
-      "id":"connect",
-      "label": {"en": "Connect"},
+      "id":"sync",
+      "label": {"en": "sync"},
       "req": {
         "serv":"mill",
-        "intf_t": "cmd.auth.set_tokens",
-        "val": ""
-      },
-      "hidden": false
-    }, {
-      "id":"disconnect",
-      "label": {"en": "Disconnect"},
-      "req": {
-        "serv":"hue",
-        "intf_t": "cmd.system.disconnect",
-        "val": ""
-      },
-      "hidden": false
-    },{
-      "id":"sync",
-      "label": {"en": "Re-sync devices"},
-      "req": {
-        "serv":"hue",
-        "intf_t": "cmd.network.get_all_nodes",
+        "intf_t": "cmd.system.sync",
         "val": ""
       },
       "hidden": false
     }
-
   ],
   "ui_blocks": [
     {
-      "id":"connect",
-      "header": {"en": "Mill connection"},
-      "text": {"en": "Note that all devices will be set to individual controll in Mill app"},
-      "configs": ["host","connection_state","errors"],
-      "buttons": ["connect","disconnect"],
+      "id":"sync",
+      "header": {"en": "Synchronize with Mill app"},
+      "text": {"en": "The app will find and include all devices connected to your Mill user. You need to be logged in before synchronizing."},
+      "configs": [],
+      "buttons": ["sync"],
       "footer": {"en": ""}
     },
     {
-      "id":"discover",
-      "header": {"en": "Discover Mill devices"},
-      "text": {"en": "The app will try to discover new devices"},
-      "configs": ["homecollection"],
-      "buttons": ["discover"],
-      "footer": {"en": ""}
+      "id":"settings",
+      "header": {"en": "Settings"},
+      "text": {"en": "Set how often you want futurehome to get temperature reports from Mill in minutes. After changing this value you need to stop and start the Mill app in playgrounds."},
+      "configs": ["poll_time_min"],
+      "buttons": [],
+      "footer": {"en": ""},
+      "hidden": false
     }
   ],
   "auth": {
-    "type": "",
-    "redirect_url": "",
-    "client_id": "",
-    "partner_id": "",
-    "auth_endpoint": ""
+      "type": "password",
+      "code_grant_login_page_url":"",
+      "redirect_url": "",
+      "client_id": "",
+      "secret":"",
+      "partner_id": "",
+      "auth_endpoint": ""
   },
-  "init_flow":["connect"],
+  "init_flow":["auth", "connect"],
   "services": [
     {
       "name": "mill",
@@ -239,6 +211,36 @@
         {
           "intf_t": "in",
           "msg_t": "cmd.thing.delete",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.auth.login",
+          "val_t": "object",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "cmd.hub_auth.get_jwt",
+          "val_t": "str_map",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.auth.logout",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "out",
+          "msg_t": "evt.thing.exclusion_report",
+          "val_t": "string",
+          "ver": "1"
+        },
+        {
+          "intf_t": "in",
+          "msg_t": "cmd.system.sync",
           "val_t": "string",
           "ver": "1"
         }

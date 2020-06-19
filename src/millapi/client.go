@@ -1,9 +1,11 @@
 package mill
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -41,12 +43,8 @@ type Config struct {
 	StatusCode int    `json:"statusCode"`
 	Success    bool   `json:"success"`
 
-	Props struct {
-		Username    string `json:"username"`
-		Password    string `json:"password"`
-		AccessKey   string `json:"access_key"`
-		SecretToken string `json:"secret_token"`
-	} `json:"props"`
+	Password string `json:"password"`
+	Username string `json:"username"`
 
 	Data struct {
 		AuthorizationCode string `json:"authorization_code"`
@@ -127,33 +125,17 @@ type Room struct {
 }
 
 // NewClient create a handle authentication to Mill API
-func (config *Config) NewClient(accessKey string, secretToken string, password string, username string) (string, string, string, int64, int64) {
-	req, err := http.NewRequest("POST", authURL, nil)
+func (config *Config) NewClient(authCode string, password string, username string) (string, string, int64, int64) {
+	url := applyAccessTokenURL + "?password=" + password + "&username=" + username
+	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
-		log.Debug("request error")
-		log.Debug(fmt.Errorf("Can't post authCode request, error: ", err))
+		log.Error(fmt.Errorf("Can't post accessToken request, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Access_key", accessKey)
-	req.Header.Set("Secret_token", secretToken)
+	req.Header.Set("Authorization_code", authCode)
 
 	resp, err := http.DefaultClient.Do(req)
-	processHTTPResponse(resp, err, config)
-
-	authorizationCode := config.Data.AuthorizationCode
-
-	// have authorization code, send new curl request to get tokens
-	url := applyAccessTokenURL + "?password=" + password + "&username=" + username
-	req, err = http.NewRequest("POST", url, nil)
-	if err != nil {
-		// handle err
-		log.Debug(fmt.Errorf("Can't post accessToken request, error: ", err))
-	}
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Authorization_code", authorizationCode)
-
-	resp, err = http.DefaultClient.Do(req)
 	processHTTPResponse(resp, err, config)
 
 	accessToken := config.Data.AccessToken
@@ -161,10 +143,10 @@ func (config *Config) NewClient(accessKey string, secretToken string, password s
 	expireTime := config.Data.ExpireTime
 	refreshExpireTime := config.Data.RefreshExpireTime
 	if err != nil {
-		return "", "", "", 0, 0
+		return "", "", 0, 0
 	}
 	defer resp.Body.Close()
-	return authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
+	return accessToken, refreshToken, expireTime, refreshExpireTime
 }
 
 func (config *Config) RefreshToken(refreshToken string) (string, string, int64, int64) {
@@ -172,7 +154,7 @@ func (config *Config) RefreshToken(refreshToken string) (string, string, int64, 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't post refreshToken request, error: ", err))
+		log.Error(fmt.Errorf("Can't post refreshToken request, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 
@@ -196,32 +178,31 @@ func (c *Client) GetAllDevices(accessToken string) ([]Device, []Room, []Home, []
 	var allIndependentDevices []Device
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't get home list, error: ", err))
+		log.Error(fmt.Errorf("Can't get home list, error: ", err))
 	}
 	for home := range homes.Data.Homes {
 		allHomes = append(allHomes, homes.Data.Homes[home])
 		rooms, err := c.GetRoomList(accessToken, homes.Data.Homes[home].HomeID)
 		if err != nil {
 			// handle err
-			log.Debug(fmt.Errorf("Can't get room list, error: ", err))
+			log.Error(fmt.Errorf("Can't get room list, error: ", err))
 		}
 		for room := range rooms.Data.Rooms {
 			allRooms = append(allRooms, rooms.Data.Rooms[room])
 			devices, err := c.GetDeviceList(accessToken, rooms.Data.Rooms[room].RoomID)
 			for device := range devices.Data.Devices {
-				// log.Debug(devices.Data.Devices[device])
 				allDevices = append(allDevices, devices.Data.Devices[device])
 			}
 			if err != nil {
 				// handle err
-				log.Debug(fmt.Errorf("Can't get device list, error: ", err))
+				log.Error(fmt.Errorf("Can't get device list, error: ", err))
 			}
 		}
 		// Get all independent devices
 		independentDevices, err := c.GetIndependentDevices(accessToken, homes.Data.Homes[home].HomeID)
 		if err != nil {
 			// handle err
-			log.Debug(fmt.Errorf("Can't get independent device list, error: ", err))
+			log.Error(fmt.Errorf("Can't get independent device list, error: ", err))
 		}
 		for device := range independentDevices.Data.IndependentDevices {
 			allDevices = append(allDevices, independentDevices.Data.IndependentDevices[device])
@@ -236,7 +217,7 @@ func (c *Client) GetHomeList(accessToken string) (*Client, error) {
 	req, err := http.NewRequest("POST", selectHomeListURL, nil)
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't get home list, error: ", err))
+		log.Error(fmt.Errorf("Can't get home list, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -253,7 +234,7 @@ func (c *Client) GetRoomList(accessToken string, homeID int64) (*Client, error) 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't get room list, error: ", err))
+		log.Error(fmt.Errorf("Can't get room list, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -268,7 +249,7 @@ func (c *Client) GetDeviceList(accessToken string, roomID int64) (*Client, error
 	url := fmt.Sprintf("%s%s%d", selectDevicebyRoomURL, "?roomId=", roomID)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
-		log.Debug(fmt.Errorf("Can't get device list, error: ", err))
+		log.Error(fmt.Errorf("Can't get device list, error: ", err))
 		// handle err
 	}
 	req.Header.Set("Accept", "*/*")
@@ -284,7 +265,7 @@ func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Clien
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't get independent device list, error: ", err))
+		log.Error(fmt.Errorf("Can't get independent device list, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -299,7 +280,7 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't controll device, error: ", err))
+		log.Error(fmt.Errorf("Can't controll device, error: ", err))
 	}
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Access_token", accessToken)
@@ -312,17 +293,47 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 	return false
 }
 
+func (cf *Config) GetAuthCode(hubToken string) string {
+	type Payload struct {
+		PartnerCode string `json:"partnerCode"`
+	}
+	data := Payload{
+		PartnerCode: "mill",
+	}
+	payloadBytes, err := json.Marshal(data)
+	if err != nil {
+		// handle err
+		log.Debug("issue with payloadBytes")
+	}
+	body := bytes.NewReader(payloadBytes)
+
+	req, err := http.NewRequest("POST", "https://partners-beta.futurehome.io/api/control/edge/proxy/custom/auth-code", body)
+	if err != nil {
+		// handle err
+		log.Debug(fmt.Errorf("Issue when making request to partner-api"))
+	}
+	req.Header.Set("Authorization", os.ExpandEnv(fmt.Sprintf("%s%s", "Bearer ", hubToken)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Postman-Token", "65cb80d3-cbd2-4c8d-954a-bb3253b306e5")
+	req.Header.Set("Cache-Control", "no-cache")
+	resp, err := http.DefaultClient.Do(req)
+	processHTTPResponse(resp, err, cf)
+
+	authorizationCode := cf.Data.AuthorizationCode
+	return authorizationCode
+}
+
 // Unmarshall received data into holder struct
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {
 	if err != nil {
-		log.Debug(fmt.Errorf("API does not respond"))
+		log.Error(fmt.Errorf("API does not respond"))
 		return fmt.Errorf("API does not respond")
 	}
 	defer resp.Body.Close()
 	// check http return code
 	if resp.StatusCode != 200 {
 		//bytes, _ := ioutil.ReadAll(resp.Body)
-		log.Debug("Bad HTTP return code ", resp.StatusCode)
+		log.Error("Bad HTTP return code ", resp.StatusCode)
 		return fmt.Errorf("Bad HTTP return code %d", resp.StatusCode)
 	}
 
@@ -337,7 +348,7 @@ func (c *Client) UpdateLists(accessToken string, hc []interface{}, rc []interfac
 	allDevices, allRooms, allHomes, allIndependentDevices, err := c.GetAllDevices(accessToken)
 	if err != nil {
 		// handle err
-		log.Debug(fmt.Errorf("Can't update lists, error: ", err))
+		log.Error(fmt.Errorf("Can't update lists, error: ", err))
 	}
 	for home := range allHomes {
 		hc = append(hc, allHomes[home])

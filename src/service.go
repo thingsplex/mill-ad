@@ -61,6 +61,13 @@ func main() {
 	} else {
 		appLifecycle.SetConfigState(model.ConfigStateNotConfigured)
 		appLifecycle.SetAppState(model.AppStateNotConfigured, nil)
+		appLifecycle.SetConnectionState(model.ConnStateDisconnected)
+	}
+
+	if configs.IsAuthenticated() && err == nil {
+		appLifecycle.SetAuthState(model.AuthStateAuthenticated)
+	} else {
+		appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 	}
 	//------------------ Sample code --------------------------------------
 
@@ -78,7 +85,8 @@ func main() {
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
 		log.Info("Starting ticker")
-		ticker := time.NewTicker(time.Duration(configs.PollTimeSec) * time.Second)
+
+		ticker := time.NewTicker(time.Duration(configs.PollTimeMin) * time.Minute)
 		for ; true; <-ticker.C {
 			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
 			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)

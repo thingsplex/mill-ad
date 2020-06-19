@@ -29,12 +29,10 @@ type Configs struct {
 	ConfiguredBy       string `json:"configured_by"`
 	Param1             bool   `json:"param_1"`
 	Param2             string `json:"param_2"`
-	PollTimeSec        int    `json:"poll_time_sec"`
+	PollTimeMin        int    `json:"poll_time_min"`
 
-	Username    string `json:"username"`     // this should be moved
-	Password    string `json:"password"`     // this should be moved
-	AccessKey   string `json:"access_key"`   // this should be moved
-	SecretToken string `json:"secret_token"` // this should be moved
+	Username string `json:"username"` // this should be moved
+	Password string `json:"password"` // this should be moved
 
 	Auth struct {
 		AuthorizationCode string `json:"authorization_code"` // this should be moved
@@ -46,6 +44,7 @@ type Configs struct {
 
 	ConnectionState string `json:"connection_state"`
 	Errors          string `json:"errors"`
+	HubToken        string `json:"token"`
 }
 
 func NewConfigs(workDir string) *Configs {
@@ -104,6 +103,14 @@ func (cf *Configs) LoadDefaults() error {
 
 func (cf *Configs) IsConfigured() bool {
 	if cf.Auth.AccessToken != "" {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (cf *Configs) IsAuthenticated() bool {
+	if cf.Auth.AuthorizationCode != "" {
 		return true
 	} else {
 		return false

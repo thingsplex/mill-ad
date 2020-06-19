@@ -39,6 +39,7 @@ func (fc *FromFimpRouter) Start() {
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:dev/rn:%s/ad:1/#", model.ServiceName))
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:ad/rn:%s/ad:1", model.ServiceName))
 	fc.mqt.Subscribe("pt:j1/mt:cmd/rt:ad/rn:zigbee/ad:1")
+	fc.mqt.Subscribe("pt:j1/mt:evt/rt:cloud/rn:auth-api/ad:1")
 
 	// ------ Application topic -------------------------------------------
 	//fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:app/rn:%s/ad:1",model.ServiceName))
@@ -70,7 +71,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.RefreshToken(fc.configs.Auth.RefreshToken)
 			fc.states.SaveToFile()
 		} else if millis > fc.configs.Auth.RefreshExpireTime {
-			log.Debug("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
+			log.Error("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
 		}
 	}
 
@@ -93,7 +94,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			halfTemp, err := strconv.Atoi(valTemp[1])
 			if err != nil {
 				// handle err
-				log.Debug(fmt.Errorf("Can't convert to string, error: ", err))
+				log.Error(fmt.Errorf("Can't convert to string, error: ", err))
 			}
 			if halfTemp > 0 {
 				newTempInt++
@@ -108,7 +109,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 			if !config.DeviceControl(fc.configs.Auth.AccessToken, deviceID, newTemp) {
-				log.Debug("something went wrong when changing temperature")
+				log.Error("something went wrong when changing temperature")
 			}
 
 		case "cmd.setpoint.get_report":
@@ -116,7 +117,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			// Will always be 0 if it is not an independent device.
 			deviceIndex, err := fc.states.FindDeviceFromDeviceID(addr)
 			if err != nil {
-				log.Debug(fmt.Errorf("Can't find device from deviceID, error: ", err))
+				log.Error(fmt.Errorf("Can't find device from deviceID, error: ", err))
 			}
 			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
 			setpointTemp := strconv.FormatInt(device.FieldByName("SetpointTemp").Interface().(int64), 10)
@@ -150,7 +151,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			deviceIndex, err := fc.states.FindDeviceFromDeviceID(addr)
 			if err != nil {
 				// handle err
-				log.Debug(fmt.Errorf("Can't find device from deviceID, error: ", err))
+				log.Error(fmt.Errorf("Can't find device from deviceID, error: ", err))
 			}
 			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
 			currentTemp := device.FieldByName("CurrentTemp").Interface().(float32)
@@ -170,30 +171,50 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: model.ServiceName, ResourceAddress: "1"}
 		switch newMsg.Payload.Type {
 
-		case "cmd.auth.set_tokens":
-			value, err := newMsg.Payload.GetStrMapValue()
+		case "cmd.auth.login":
+			conf := fc.configs
+			err := newMsg.Payload.GetObjectValue(&conf)
 			if err != nil {
 				// handle err
-				log.Debug(fmt.Errorf("Can't get strMapValue, error: ", err))
+				log.Error("Could not get object value")
 			}
-			fc.configs.Username = value["username"]
-			fc.configs.Password = value["password"]
-			fc.configs.AccessKey = value["access_key"]
-			fc.configs.SecretToken = value["secret_token"]
-			fc.configs.SaveToFile()
+			fc.configs.Username = conf.Username
+			fc.configs.Password = conf.Password
 
-			if fc.configs.Username != "" && fc.configs.Password != "" && fc.configs.AccessKey != "" && fc.configs.SecretToken != "" {
-				// Send api requests to get authorizationCode, accessToken, refreshToken, expireTime, refreshExpireTime
-				fc.appLifecycle.SetAuthState(model.AuthStateInProgress)
-				fc.configs.Auth.AuthorizationCode, fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.NewClient(fc.configs.AccessKey, fc.configs.SecretToken, fc.configs.Password, fc.configs.Username)
-			} else {
-				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
+			if fc.configs.Username != "" && fc.configs.Password != "" {
+				// Get hub token
+				val := map[string]interface{}{
+					"site_id":     "",
+					"hub_id":      "",
+					"auth_system": "heimdall",
+				}
+				msg := fimpgo.NewMessage("cmd.hub_auth.get_jwt", "auth-api", fimpgo.VTypeStrMap, val, nil, nil, nil)
+				msg.Source = "clbridge"
+				newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:cmd/rt:cloud/rn:auth-api/ad:1")
+				if err != nil {
+					log.Debug("Could not send hub token request")
+				}
+				fc.mqt.Publish(newadr, msg)
 			}
-			if fc.configs.Auth.AuthorizationCode == "" {
-				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
-			} else {
+			loginval := map[string]interface{}{
+				"errors":  nil,
+				"success": true,
+			}
+			msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, loginval, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				log.Debug("Could not respond to wanted topic")
+			}
+
+		case "cmd.auth.set_tokens":
+			if fc.configs.Auth.AuthorizationCode != "" {
 				fc.appLifecycle.SetAuthState(model.AuthStateAuthenticated)
+				fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.NewClient(fc.configs.Auth.AuthorizationCode, fc.configs.Password, fc.configs.Username)
+				fc.configs.Username = ""
+				fc.configs.Password = ""
+			} else {
+				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 			}
+
 			if fc.configs.Auth.AccessToken != "" && fc.configs.Auth.RefreshToken != "" {
 				log.Debug("All tokens received and saved.")
 			}
@@ -224,6 +245,34 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			fc.configs.SaveToFile()
 			fc.states.SaveToFile()
 
+		case "cmd.auth.logout":
+			for i := 0; i < len(fc.states.DeviceCollection); i++ {
+				device := reflect.ValueOf(fc.states.DeviceCollection[i])
+				deviceID := strconv.FormatInt(device.FieldByName("DeviceID").Interface().(int64), 10)
+				val := map[string]interface{}{
+					"address": deviceID,
+				}
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
+				msg := fimpgo.NewMessage("evt.thing.exclusion_report", "mill", fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+				fc.mqt.Publish(adr, msg)
+			}
+
+			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
+			fc.appLifecycle.SetConfigState(model.ConfigStateNotConfigured)
+			fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
+			fc.appLifecycle.SetConnectionState(model.ConnStateDisconnected)
+			fc.configs.LoadDefaults()
+			fc.states.LoadDefaults()
+
+			val2 := map[string]interface{}{
+				"errors":  nil,
+				"success": true,
+			}
+			msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, val2, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				log.Error("Could not respond to wanted request")
+			}
+
 		case "cmd.network.get_all_nodes":
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.
 			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
@@ -235,6 +284,30 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.mqt.Publish(adr, msg)
 			}
 			fc.states.SaveToFile()
+
+		case "cmd.system.sync":
+
+			// only
+			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
+			fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection)
+			log.Debug(fc.configs.Auth.AccessToken)
+
+			for i := 0; i < len(fc.states.DeviceCollection); i++ {
+				inclReport := ns.SendInclusionReport(i, fc.states.DeviceCollection)
+
+				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
+				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
+				fc.mqt.Publish(&adr, msg)
+			}
+
+			val2 := map[string]interface{}{
+				"errors":  nil,
+				"success": true,
+			}
+			msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, val2, nil, nil, newMsg.Payload)
+			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+				log.Error("Could not respond to wanted request")
+			}
 
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
@@ -277,19 +350,16 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				if fc.appLifecycle.ConnectionState() == model.ConnStateConnected {
 					syncButton.Hidden = false
 				} else {
-					syncButton.Hidden = true
+					syncButton.Hidden = false
 				}
 			}
-			connBlock := manifest.GetUIBlock("connect")
+			pollTimeBlock := manifest.GetUIBlock("poll_time_min")
+			if pollTimeBlock != nil {
+				pollTimeBlock.Hidden = false
+			}
 			settingsBlock := manifest.GetUIBlock("settings")
-			if connBlock != nil && settingsBlock != nil {
-				if fc.states.DeviceCollection != nil {
-					connBlock.Hidden = false
-					settingsBlock.Hidden = false
-				} else {
-					connBlock.Hidden = true
-					settingsBlock.Hidden = true
-				}
+			if settingsBlock != nil {
+				settingsBlock.Hidden = false
 			}
 			msg := fimpgo.NewMessage("evt.app.manifest_report", model.ServiceName, fimpgo.VTypeObject, manifest, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
@@ -384,12 +454,12 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			deviceID, err := newMsg.Payload.GetStringValue()
 			if err != nil {
 				// handle err
-				log.Debug(fmt.Errorf("Can't get strValue, error: ", err))
+				log.Error(fmt.Errorf("Can't get strValue, error: ", err))
 			}
 			nodeID, err := fc.states.FindDeviceFromDeviceID(deviceID)
 			if err != nil { // normal error handling did not work for some reason, find out why
 				// handle error
-				log.Debug("error") // this never executes
+				log.Error("error") // this never executes
 			}
 			if nodeID != 9999 { // using this method instead
 				inclReport := ns.SendInclusionReport(nodeID, fc.states.DeviceCollection)
@@ -423,6 +493,24 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.mqt.Publish(adr, msg)
 				log.Info("Device with deviceID: ", deviceID, " has been removed from network. It is still saved in adapter, so it can be reincluded by sending 'cmd.auth.set_tokens' or 'cmd.thing.get_inclusion_report'.")
 			}
+		}
+	case "auth-api":
+		val, err := newMsg.Payload.GetStrMapValue()
+		if err != nil {
+			log.Error("Wrong msg format")
+			return
+		}
+		fc.configs.HubToken = val["token"]
+		fc.configs.SaveToFile()
+
+		// Get authorization code
+		fc.configs.Auth.AuthorizationCode = config.GetAuthCode(fc.configs.HubToken)
+
+		msg := fimpgo.NewMessage("cmd.auth.set_tokens", model.ServiceName, fimpgo.VTypeString, "", nil, nil, newMsg.Payload)
+		newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:cmd/rt:ad/rn:mill/ad:1")
+		if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
+			// if response topic is not set , sending back to default application event topic
+			fc.mqt.Publish(newadr, msg)
 		}
 	}
 }
