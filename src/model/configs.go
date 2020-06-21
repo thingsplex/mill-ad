@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/futurehomeno/fimpgo"
 	log "github.com/sirupsen/logrus"
 	"github.com/thingsplex/mill/utils"
 )
@@ -45,6 +46,7 @@ type Configs struct {
 	ConnectionState string `json:"connection_state"`
 	Errors          string `json:"errors"`
 	HubToken        string `json:"token"`
+	UID             string `json:"uid"`
 }
 
 func NewConfigs(workDir string) *Configs {
@@ -120,4 +122,30 @@ func (cf *Configs) IsAuthenticated() bool {
 type ConfigReport struct {
 	OpStatus string    `json:"op_status"`
 	AppState AppStates `json:"app_state"`
+}
+
+func (cf *Configs) GetHubToken(oldMsg *fimpgo.Message) (*fimpgo.Address, *fimpgo.FimpMessage, error) {
+	// mqt := fimpgo.MqttTransport{}
+	err := oldMsg.Payload.GetObjectValue(&cf)
+	if err != nil {
+		log.Error("Could not get object value")
+		return nil, nil, err
+	}
+	if cf.Username != "" && cf.Password != "" {
+		// Get hub token
+		val := map[string]interface{}{
+			"site_id":     "",
+			"hub_id":      "",
+			"auth_system": "heimdall",
+		}
+		msg := fimpgo.NewMessage("cmd.hub_auth.get_jwt", "auth-api", fimpgo.VTypeStrMap, val, nil, nil, nil)
+		msg.Source = "clbridge"
+		newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:cmd/rt:cloud/rn:auth-api/ad:1")
+		if err != nil {
+			log.Debug("Could not send hub token request")
+			return nil, nil, err
+		}
+		return newadr, msg, nil
+	}
+	return nil, nil, err
 }

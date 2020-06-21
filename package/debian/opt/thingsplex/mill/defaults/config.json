@@ -8,5 +8,8 @@
   "log_file": "/var/log/thingsplex/mill/mill.log",
   "log_level": "debug",
   "log_format": "text",
-  "poll_time_min": 2
+  "poll_time_min": 2,
+  "Auth": {
+    "authorization_code": ""
+  }
 }

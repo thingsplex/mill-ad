@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/thingsplex/mill/model"
+
+	"github.com/futurehomeno/fimpgo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -293,7 +296,15 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 	return false
 }
 
-func (cf *Config) GetAuthCode(hubToken string) string {
+func (cf *Config) GetAuthCode(oldMsg *fimpgo.Message) (string, string) {
+	cfs := model.Configs{}
+	val, err := oldMsg.Payload.GetStrMapValue()
+	if err != nil {
+		log.Error("Wrong msg format")
+		return "", ""
+	}
+	cfs.HubToken = val["token"]
+
 	type Payload struct {
 		PartnerCode string `json:"partnerCode"`
 	}
@@ -312,7 +323,7 @@ func (cf *Config) GetAuthCode(hubToken string) string {
 		// handle err
 		log.Debug(fmt.Errorf("Issue when making request to partner-api"))
 	}
-	req.Header.Set("Authorization", os.ExpandEnv(fmt.Sprintf("%s%s", "Bearer ", hubToken)))
+	req.Header.Set("Authorization", os.ExpandEnv(fmt.Sprintf("%s%s", "Bearer ", cfs.HubToken)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Postman-Token", "65cb80d3-cbd2-4c8d-954a-bb3253b306e5")
 	req.Header.Set("Cache-Control", "no-cache")
@@ -320,7 +331,7 @@ func (cf *Config) GetAuthCode(hubToken string) string {
 	processHTTPResponse(resp, err, cf)
 
 	authorizationCode := cf.Data.AuthorizationCode
-	return authorizationCode
+	return authorizationCode, cfs.HubToken
 }
 
 // Unmarshall received data into holder struct

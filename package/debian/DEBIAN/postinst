@@ -8,7 +8,7 @@ then
 
   useradd -r -N -M -d / -s /bin/false -g thingsplex mill || true
 
-  chown -R mill:thingsplex /var/log/thingsplex/mill/ || true
+  chown -R mill:thingsplex /var/log/thingsplex/mill/mill.log || true
   chown -R mill:mill /opt/thingsplex/mill/ || true
 fi
 

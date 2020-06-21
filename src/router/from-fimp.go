@@ -62,6 +62,9 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	if fc.configs.IsConfigured() {
 		fc.appLifecycle.SetConnectionState(model.ConnStateConnected)
 		fc.appLifecycle.SetConfigState(model.ConfigStateConfigured)
+	} else {
+		fc.appLifecycle.SetConfigState(model.ConfigStateNotConfigured)
+		fc.appLifecycle.SetConnectionState(model.ConnStateDisconnected)
 	}
 
 	// Get new tokens if expires_in is exceeded. expireTime lasts for two hours, refreshExpireTime lasts for 30 days.
@@ -173,51 +176,51 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		switch newMsg.Payload.Type {
 
 		case "cmd.auth.login":
-			conf := fc.configs
-			err := newMsg.Payload.GetObjectValue(&conf)
+			newadr, msg, err := fc.configs.GetHubToken(newMsg)
 			if err != nil {
-				// handle err
-				log.Error("Could not get object value")
-			}
-			fc.configs.Username = conf.Username
-			fc.configs.Password = conf.Password
-
-			if fc.configs.Username != "" && fc.configs.Password != "" {
-				// Get hub token
-				val := map[string]interface{}{
-					"site_id":     "",
-					"hub_id":      "",
-					"auth_system": "heimdall",
-				}
-				msg := fimpgo.NewMessage("cmd.hub_auth.get_jwt", "auth-api", fimpgo.VTypeStrMap, val, nil, nil, nil)
-				msg.Source = "clbridge"
-				newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:cmd/rt:cloud/rn:auth-api/ad:1")
-				if err != nil {
-					log.Debug("Could not send hub token request")
-				}
+				log.Error("Something went wrong when getting hub token")
+			} else {
 				fc.mqt.Publish(newadr, msg)
 			}
-			loginval := map[string]interface{}{
-				"errors":  nil,
-				"success": true,
-			}
-			msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, loginval, nil, nil, newMsg.Payload)
-			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-				log.Debug("Could not respond to wanted topic")
-			}
+
+			fc.configs.UID = newMsg.Payload.UID
 
 		case "cmd.auth.set_tokens":
 			if fc.configs.Auth.AuthorizationCode != "" {
-				fc.appLifecycle.SetAuthState(model.AuthStateAuthenticated)
 				fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.NewClient(fc.configs.Auth.AuthorizationCode, fc.configs.Password, fc.configs.Username)
 				fc.configs.Username = ""
 				fc.configs.Password = ""
 			} else {
-				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 			}
 
-			if fc.configs.Auth.AccessToken != "" && fc.configs.Auth.RefreshToken != "" {
+			if fc.configs.Auth.AccessToken != "" {
+				fc.appLifecycle.SetAuthState(model.AuthStateAuthenticated)
 				log.Debug("All tokens received and saved.")
+				loginval := map[string]interface{}{
+					"errors":  nil,
+					"success": true,
+				}
+				newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:rsp/rt:cloud/rn:remote-client/ad:smarthome-app")
+				if err != nil {
+					log.Debug("Could not make login response topic")
+				}
+				msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, loginval, nil, nil, newMsg.Payload)
+				msg.CorrelationID = fc.configs.UID
+				fc.mqt.Publish(newadr, msg)
+			} else {
+				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
+				log.Debug("Login failed, please try again")
+				loginval := map[string]interface{}{
+					"errors":  "Wrong username or password",
+					"success": false,
+				}
+				newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:rsp/rt:cloud/rn:remote-client/ad:smarthome-app")
+				if err != nil {
+					log.Debug("Could not make login response topic")
+				}
+				msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, loginval, nil, nil, newMsg.Payload)
+				msg.CorrelationID = fc.configs.UID
+				fc.mqt.Publish(newadr, msg)
 			}
 
 			msg := fimpgo.NewMessage("evt.auth.status_report", model.ServiceName, fimpgo.VTypeObject, fc.appLifecycle.GetAllStates(), nil, nil, newMsg.Payload)
@@ -247,6 +250,10 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			fc.states.SaveToFile()
 
 		case "cmd.auth.logout":
+			fc.configs.Auth.AccessToken = ""
+			fc.appLifecycle.SetConfigState(model.ConfigStateNotConfigured)
+			fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
+			fc.appLifecycle.SetConnectionState(model.ConnStateDisconnected)
 			for i := 0; i < len(fc.states.DeviceCollection); i++ {
 				device := reflect.ValueOf(fc.states.DeviceCollection[i])
 				deviceID := strconv.FormatInt(device.FieldByName("DeviceID").Interface().(int64), 10)
@@ -259,9 +266,6 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
-			fc.appLifecycle.SetConfigState(model.ConfigStateNotConfigured)
-			fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
-			fc.appLifecycle.SetConnectionState(model.ConnStateDisconnected)
 			fc.configs.LoadDefaults()
 			fc.states.LoadDefaults()
 
@@ -496,22 +500,13 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 		}
 	case "auth-api":
-		val, err := newMsg.Payload.GetStrMapValue()
-		if err != nil {
-			log.Error("Wrong msg format")
-			return
-		}
-		fc.configs.HubToken = val["token"]
-		fc.configs.SaveToFile()
-
-		// Get authorization code
-		fc.configs.Auth.AuthorizationCode = config.GetAuthCode(fc.configs.HubToken)
+		fc.configs.Auth.AuthorizationCode, fc.configs.HubToken = config.GetAuthCode(newMsg)
 
 		msg := fimpgo.NewMessage("cmd.auth.set_tokens", model.ServiceName, fimpgo.VTypeString, "", nil, nil, newMsg.Payload)
 		newadr, err := fimpgo.NewAddressFromString("pt:j1/mt:cmd/rt:ad/rn:mill/ad:1")
-		if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
-			// if response topic is not set , sending back to default application event topic
-			fc.mqt.Publish(newadr, msg)
+		if err != nil {
+			log.Debug(err)
 		}
+		fc.mqt.Publish(newadr, msg)
 	}
 }
