@@ -1,32 +1,6 @@
 {
   "configs":[
     {
-      "id": "connection_state",
-      "label": {"en": "State"},
-      "val_t": "string",
-      "ui": {
-        "type": "text"
-      },
-      "val": {
-        "default": ""
-      },
-      "is_required": true,
-      "config_point": "any"
-    },
-    {
-      "id": "errors",
-      "label": {"en": "Errors"},
-      "val_t": "string",
-      "ui": {
-        "type": "text_error"
-      },
-      "val": {
-        "default": ""
-      },
-      "is_required": true,
-      "config_point": "any"
-    },
-    {
       "id": "poll_time_min",
       "label": {"en": "Poll time in minutes"},
       "val_t": "string",
@@ -36,8 +10,6 @@
       "val": {
         "default": ""
       },
-      "is_required": false,
-      "hidden": false,
       "config_point": "any"
     }
   ],
@@ -58,17 +30,17 @@
       "id":"sync",
       "header": {"en": "Synchronize with Mill app"},
       "text": {"en": "The app will find and include all devices connected to your Mill user. You need to be logged in before synchronizing."},
-      "configs": [],
+      "configs": [],  
       "buttons": ["sync"],
       "footer": {"en": ""}
     },
     {
-      "id":"settings",
-      "header": {"en": "Settings"},
-      "text": {"en": "Set how often you want futurehome to get temperature reports from Mill in minutes. After changing this value you need to stop and start the Mill app in playgrounds."},
+      "id":"poll_time_min",
+      "header": {"en": "Poll Time"},
+      "text": {"en": "Set how often you want futurehome to get temperature reports from Mill in minutes."},
       "configs": ["poll_time_min"],
       "buttons": [],
-      "footer": {"en": ""},
+      "footer": {"en": "Click save to save new poll time. After changing this value you need to stop and start the Mill app in playgrounds."},
       "hidden": false
     }
   ],

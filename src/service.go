@@ -78,11 +78,13 @@ func main() {
 	}
 	appLifecycle.SetAppState(model.AppStateRunning, nil)
 	//------------------ Sample code --------------------------------------
+	PollString := configs.PollTimeMin
+	PollTime, err := strconv.Atoi(PollString)
 
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
 		log.Info("Starting ticker")
-		ticker := time.NewTicker(time.Duration(configs.PollTimeMin) * time.Minute)
+		ticker := time.NewTicker(time.Duration(PollTime) * time.Minute)
 		for ; true; <-ticker.C {
 			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
 			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)

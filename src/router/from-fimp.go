@@ -314,6 +314,9 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				log.Error("Could not respond to wanted request")
 			}
 
+		case "cmd.system.set_poll_time":
+			log.Debug("pollTime case")
+
 		case "cmd.app.get_manifest":
 			mode, err := newMsg.Payload.GetStringValue()
 			if err != nil {
@@ -394,11 +397,18 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				log.Error("Can't parse configuration object")
 				return
 			}
-			fc.configs.Param1 = conf.Param1
-			fc.configs.Param2 = conf.Param2
-			fc.configs.SaveToFile()
-			log.Debugf("App reconfigured . New parameters : %v", fc.configs)
-			// TODO: This is an example . Add your logic here or remove
+			pollTimeMin := conf.PollTimeMin
+			_, err = strconv.Atoi(pollTimeMin)
+
+			if err != nil {
+				log.Error(fmt.Sprintf("%q is not a number or contains illegal symbols.", pollTimeMin))
+			} else {
+				fc.configs.PollTimeMin = pollTimeMin
+				fc.configs.SaveToFile()
+				log.Debug("App reconfigured.")
+				// TODO: This is an example . Add your logic here or remove
+			}
+
 			configReport := model.ConfigReport{
 				OpStatus: "ok",
 				AppState: *fc.appLifecycle.GetAllStates(),
