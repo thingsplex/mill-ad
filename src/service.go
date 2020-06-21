@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/futurehomeno/fimpgo"
@@ -70,10 +71,6 @@ func main() {
 		appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 	}
 	//------------------ Sample code --------------------------------------
-
-	msg := fimpgo.NewFloatMessage("evt.sensor.report", "temp_sensor", float64(23), nil, nil, nil)
-	adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: "mill", ResourceAddress: "1", ServiceName: "temp_sensor", ServiceAddress: "300"}
-	mqtt.Publish(&adr, msg)
 	if err != nil {
 		log.Error("Can't connect to broker. Error:", err.Error())
 	} else {
@@ -85,18 +82,15 @@ func main() {
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
 		log.Info("Starting ticker")
-
 		ticker := time.NewTicker(time.Duration(configs.PollTimeMin) * time.Minute)
 		for ; true; <-ticker.C {
 			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
 			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
-			states.SaveToFile()
-			states.LoadFromFile()
-			for device := range states.DeviceCollection {
-				device := reflect.ValueOf(states.DeviceCollection[device])
-				deviceId := fmt.Sprintf("%v", device.Interface().(map[string]interface{})["deviceId"])
-				currentTemp := device.Interface().(map[string]interface{})["currentTemp"]
 
+			for i := 0; i < len(states.DeviceCollection); i++ {
+				device := reflect.ValueOf(states.DeviceCollection[i])
+				deviceId := strconv.FormatInt(device.FieldByName("DeviceID").Interface().(int64), 10)
+				currentTemp := device.FieldByName("CurrentTemp").Interface().(float32)
 				tempVal := currentTemp
 				props := fimpgo.Props{}
 				props["unit"] = "C"
@@ -105,21 +99,20 @@ func main() {
 				msg := fimpgo.NewMessage("evt.sensor.report", "sensor_temp", fimpgo.VTypeFloat, tempVal, props, nil, nil)
 				mqtt.Publish(adr, msg)
 
-				setpointTemp := fmt.Sprintf("%f", device.Interface().(map[string]interface{})["holidayTemp"])
-
+				setpointTemp := strconv.FormatInt(device.FieldByName("SetpointTemp").Interface().(int64), 10)
+				setpointVal := map[string]interface{}{
+					"type": "heat",
+					"temp": setpointTemp,
+					"unit": "C",
+				}
 				if setpointTemp != "0" {
-					setpointVal := map[string]interface{}{
-						"type": "heat",
-						"temp": setpointTemp,
-						"unit": "C",
-					}
 					adr = &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: deviceId}
 					msg = fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, setpointVal, nil, nil, nil)
 					mqtt.Publish(adr, msg)
 				}
 				// -----------------------------------------------------------------------------------------------
-				states.SaveToFile()
 			}
+			states.SaveToFile()
 		}
 		appLifecycle.WaitForState(model.AppStateNotConfigured, "main")
 	}

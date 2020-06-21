@@ -121,6 +121,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
 			setpointTemp := strconv.FormatInt(device.FieldByName("SetpointTemp").Interface().(int64), 10)
+
 			if setpointTemp != "0" {
 				val := map[string]interface{}{
 					"type": "heat",

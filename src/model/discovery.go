@@ -16,7 +16,7 @@ func GetDiscoveryResource() discovery.Resource {
 			Technology:            "mill",
 			FwVersion:             "all",
 			NetworkManagementType: "inclusion_exclusion",
-			Services:              nil, // Services must be defines in manifest
+			// Services:              nil, // Services must be defines in manifest
 		},
 	}
 }
