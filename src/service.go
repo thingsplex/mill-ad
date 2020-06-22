@@ -38,7 +38,8 @@ func main() {
 		fmt.Print(err)
 		panic("Can't load state file.")
 	}
-	mill := mill.Client{}
+	client := mill.Client{}
+	config := mill.Config{}
 
 	utils.SetupLog(configs.LogFile, configs.LogLevel, configs.LogFormat)
 	log.Info("--------------Starting mill----------------")
@@ -80,14 +81,22 @@ func main() {
 	//------------------ Sample code --------------------------------------
 	PollString := configs.PollTimeMin
 	PollTime, err := strconv.Atoi(PollString)
-
 	for {
 		appLifecycle.WaitForState("main", model.AppStateRunning)
 		log.Info("Starting ticker")
 		ticker := time.NewTicker(time.Duration(PollTime) * time.Minute)
 		for ; true; <-ticker.C {
+			if configs.Auth.ExpireTime != 0 {
+				millis := time.Now().UnixNano() / 1000000
+				if millis > configs.Auth.ExpireTime && millis < configs.Auth.RefreshExpireTime {
+					configs.Auth.AccessToken, configs.Auth.RefreshToken, configs.Auth.ExpireTime, configs.Auth.RefreshExpireTime = config.RefreshToken(configs.Auth.RefreshToken)
+					states.SaveToFile()
+				} else if millis > configs.Auth.RefreshExpireTime {
+					log.Error("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
+				}
+			}
 			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
-			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = mill.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
+			states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection = client.UpdateLists(configs.Auth.AccessToken, states.HomeCollection, states.RoomCollection, states.DeviceCollection, states.IndependentDeviceCollection)
 
 			for i := 0; i < len(states.DeviceCollection); i++ {
 				device := reflect.ValueOf(states.DeviceCollection[i])
