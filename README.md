@@ -22,7 +22,7 @@ pt:j1/mt:evt/rt:dev/rn:mill/ad:1
     "val": {
         "username": "appUsername",
         "password": "appPassword"
-        },
+        }
     }
 ```
 
