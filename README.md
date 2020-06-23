@@ -2,16 +2,15 @@
 
 Adapter connects with api and retrieves list of homes, rooms and devices connected to your mill user.
 
-For testing: 
-Configure mqtt url, username and password in `testdata/data/config.json`to your Futurehome gateway. 
-Use `make run` to run the program. 
+Use `make deb-arm` to make package. 
 
+After adapter is installed on hub, go to playground -> Mill -> settings -> login
 
-Configure this message and send to your mqtt broker (e.g. through thingsplex)
+After logging in this message will be sent to FIMP:
 
 `Topic`
 ```
-pt:j1/mt:evt/rt:dev/rn:mill/ad:1/sv:mill/ad:1
+pt:j1/mt:evt/rt:dev/rn:mill/ad:1
 ```
 
 `Payload`
@@ -22,16 +21,22 @@ pt:j1/mt:evt/rt:dev/rn:mill/ad:1/sv:mill/ad:1
     "val_t": "str_map",
     "val": {
         "username": "appUsername",
-        "password": "appPassword",
-        "access_key": "futurehome_access_key",
-        "secret_token": "futurehome_secret_token"
+        "password": "appPassword"
         },
     }
 ```
 
-The program will then send a http request to the mill api which returns a unique authorization code. The program will then send a new http request to the api to receive access_token, refresh_token, expireTime and refresh_expireTime. When access_token is received you can get information about all homes, rooms and devices, as well as setting temperature and/or switching devices on/off. 
+The program then does some magic to retrieve a unique authorization code, access_token, refresh_token, expireTime and refresh_expireTime. When a valid access_token is received you can get information about all homes, rooms and devices, as well as setting temperature on devices. Access_token is valid for 2 hours, and when it expires the adapter automatically refreshes all tokens. The refresh_token is valid for 30 days, meaning that if the adapter is turned off for more than 30 days you will need to log in again.
+
 The program saves all configs such as credentials, expiretimes and devices so that you only need to use `cmd.auth.set_tokens` once. 
 
+***
+
+After logging into the Mill app in playgrounds, all devices connected to your Mill user will be included in the Futurehome app. To activate a device you need to place it in a room, and then set the room temperature. Your device will then periodically send temperature reports, and will be controlled automatically by Futurehome's climate controll.
+
+Initially the devices will send temperature reports every 5 minutes. This can be changed at any time by going to playground -> Mill -> settings -> advanced setup -> `Poll Time`. You can set Poll Time to any whole number from 1 to inf minutes. 
+
+If you have devices on your Mill account that you dont want in the Futurehome app, simply go to device and click `delete`. If you change your mind, or delete a device by accident, you can reinclude all devices by going to playground -> Mill -> settings -> advanced setup -> `sync`. 
 ***
 
 ## Services and interfaces
@@ -55,4 +60,3 @@ Type | Interface               | Value type | Description
 -----|-------------------------|------------|------------------
 in   | cmd.sensor.get_report   | null       | 
 in   | evt.sensor.report       | float      | measured temperature
-
