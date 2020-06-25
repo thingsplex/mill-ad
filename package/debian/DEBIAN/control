@@ -1,5 +1,5 @@
 Package: mill
-Version: 0.0.1
+Version: 0.1.0
 Replaces: mill
 Section: non-free/misc
 Priority: optional

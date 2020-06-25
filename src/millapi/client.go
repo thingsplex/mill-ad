@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/thingsplex/mill/model"
 
 	"github.com/futurehomeno/fimpgo"
+	"github.com/futurehomeno/fimpgo/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -129,7 +131,9 @@ type Room struct {
 
 // NewClient create a handle authentication to Mill API
 func (config *Config) NewClient(authCode string, password string, username string) (string, string, int64, int64) {
-	url := applyAccessTokenURL + "?password=" + password + "&username=" + username
+	urlpassword := url.QueryEscape(password)
+	urlusername := url.QueryEscape(username)
+	url := applyAccessTokenURL + "?password=" + urlpassword + "&username=" + urlusername
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
 		// handle err
@@ -318,7 +322,22 @@ func (cf *Config) GetAuthCode(oldMsg *fimpgo.Message) (string, string) {
 	}
 	body := bytes.NewReader(payloadBytes)
 
-	req, err := http.NewRequest("POST", "https://partners-beta.futurehome.io/api/control/edge/proxy/custom/auth-code", body)
+	var env string
+	hubInfo, err := utils.NewHubUtils().GetHubInfo()
+	if err == nil && hubInfo != nil {
+		env = hubInfo.Environment
+	} else {
+		// TODO: switch to prod
+		env = utils.EnvBeta
+	}
+	var url string
+	if env == utils.EnvBeta {
+		url = "https://partners-beta.futurehome.io/api/control/edge/proxy/custom/auth-code"
+	} else {
+		url = "https://partners.futurehome.io/api/control/edge/proxy/custom/auth-code"
+	}
+
+	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		// handle err
 		log.Debug(fmt.Errorf("Issue when making request to partner-api"))

@@ -36,10 +36,10 @@ clean-deb:
 package-deb-doc:clean-deb
 	@echo "Packaging application using Thingsplex debian package layout"
 	chmod a+x package/debian/DEBIAN/*
-	mkdir -p package/debian/var/log/thingsplex/mill package/debian/var/lib/futurehome/mill/data package debian/usr/bin
+	mkdir -p package/debian/var/log/thingsplex/mill package/debian/opt/thingsplex/mill/data package debian/usr/bin
 	mkdir -p package/build
 	cp ./src/mill package/debian/opt/thingsplex/mill
-	cp $(version_file) package/debian/var/lib/futurehome/mill
+	cp $(version_file) package/debian/opt/thingsplex/mill
 	docker run --rm -v ${working_dir}:/build -w /build --name debuild debian dpkg-deb --build package/debian
 	@echo "Done"
 
