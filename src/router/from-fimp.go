@@ -190,6 +190,8 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.NewClient(fc.configs.Auth.AuthorizationCode, fc.configs.Password, fc.configs.Username)
 				fc.configs.Username = ""
 				fc.configs.Password = ""
+				fc.configs.SaveToFile()
+				fc.states.SaveToFile()
 			} else {
 			}
 
