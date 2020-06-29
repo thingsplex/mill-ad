@@ -25,6 +25,13 @@ type FromFimpRouter struct {
 	states       *model.States
 }
 
+type ListReportRecord struct {
+	Address        string `json:"address"`
+	Alias          string `json:"alias"`
+	WakeupInterval string `json:"wakeup_int"`
+	PowerSource    string `json:"power_source"`
+}
+
 func NewFromFimpRouter(mqt *fimpgo.MqttTransport, appLifecycle *model.Lifecycle, configs *model.Configs, states *model.States) *FromFimpRouter {
 	fc := FromFimpRouter{inboundMsgCh: make(fimpgo.MessageCh, 5), mqt: mqt, appLifecycle: appLifecycle, configs: configs, states: states}
 	fc.mqt.RegisterChannel("ch1", fc.inboundMsgCh)
@@ -284,8 +291,21 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.
 			fc.states.DeviceCollection, fc.states.RoomCollection, fc.states.HomeCollection, fc.states.IndependentDeviceCollection = nil, nil, nil, nil
 			fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection = client.UpdateLists(fc.configs.Auth.AccessToken, fc.states.HomeCollection, fc.states.RoomCollection, fc.states.DeviceCollection, fc.states.IndependentDeviceCollection)
+			report := []ListReportRecord{}
+			if len(fc.states.DeviceCollection) == 0 {
+				fmt.Errorf("There are no devices")
+				return
+			}
+			for i := 0; i < len(fc.states.DeviceCollection); i++ {
+				device := reflect.ValueOf(fc.states.DeviceCollection[i])
+				deviceID := strconv.FormatInt(device.FieldByName("DeviceID").Interface().(int64), 10)
+				name := device.FieldByName("DeviceName").Interface().(string)
+				rec := ListReportRecord{Address: deviceID, Alias: "Mill " + name, PowerSource: "ac", WakeupInterval: "-1"}
+				report = append(report, rec)
+			}
 
-			msg := fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, fc.states.DeviceCollection, nil, nil, newMsg.Payload)
+			msg := fimpgo.NewMessage("evt.network.get_all_nodes_report", model.ServiceName, fimpgo.VTypeObject, report, nil, nil, newMsg.Payload)
+			msg.Source = "mill"
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				// if response topic is not set , sending back to default application event topic
 				fc.mqt.Publish(adr, msg)
