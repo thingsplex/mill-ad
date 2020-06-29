@@ -9,6 +9,7 @@ import (
 
 	"github.com/futurehomeno/fimpgo"
 	"github.com/futurehomeno/fimpgo/discovery"
+	"github.com/futurehomeno/fimpgo/edgeapp"
 	log "github.com/sirupsen/logrus"
 	mill "github.com/thingsplex/mill/millapi"
 	"github.com/thingsplex/mill/model"
@@ -72,6 +73,12 @@ func main() {
 		appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
 	}
 	//------------------ Sample code --------------------------------------
+	if err := edgeapp.NewSystemCheck().WaitForInternet(5 * time.Minute); err == nil {
+		log.Info("<main> Internet connection - OK")
+	} else {
+		log.Error("<main> Internet connection - ERROR")
+	}
+
 	if err != nil {
 		log.Error("Can't connect to broker. Error:", err.Error())
 	} else {
