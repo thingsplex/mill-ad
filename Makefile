@@ -1,20 +1,22 @@
-version="0.1.2"
 version_file=VERSION
 working_dir=$(shell pwd)
 arch="armhf"
+version:=`git describe --tags | cut -c 2-`
 remote_host = "fh@cube.local"
 
 clean:
 	-rm  -f ./src/mill
-	find . -name '.DS_Store' -type f -delete
+
+init:
+	git config core.hooksPath .githooks
 
 build-go:
 	cd ./src;go build -o mill service.go;cd ../
 
-build-go-arm:
+build-go-arm: init
 	cd ./src;GOOS=linux GOARCH=arm GOARM=6 go build -ldflags="-s -w" -o mill service.go;cd ../
 
-build-go-amd:
+build-go-amd: init
 	cd ./src;GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o mill service.go;cd ../
 
 
@@ -25,11 +27,9 @@ configure-amd64:
 	python ./scripts/config_env.py prod $(version) amd64
 
 package-tar:
-	tar cvzf mill_$(version).tar.gz mill VERSION
+	tar cvzf mill_$(version).tar.gz mill $(version_file)
 
 clean-deb:
-	find package/debian -name ".DS_Store" -delete
-	find package/debian -name "delete_me" -delete
 	find package/debian -name ".DS_Store" -delete
 	find package/debian -name "delete_me" -delete
 
@@ -53,7 +53,7 @@ deb-arm : clean configure-arm build-go-arm package-deb-doc
 
 deb-amd : configure-amd64 build-go-amd package-deb-doc
 	@echo "Building Thingsplex AMD package"
-	mv package/debian.deb mill_$(version)_amd64.deb
+	mv package/debian.deb package/build/mill_$(version)_amd64.deb
 
 upload :
 	@echo "Uploading the package to remote host"
@@ -66,9 +66,7 @@ remote-install : upload
 deb-remote-install : deb-arm remote-install
 	@echo "Package was built and installed on remote host"
 
-
 run :
 	cd ./src; go run service.go -c ../testdata;cd ../
-
 
 .phony : clean

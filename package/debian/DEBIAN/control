@@ -1,8 +1,8 @@
 Package: mill
-Version: 0.1.2
+Version: 0.1.3
 Replaces: mill
 Section: non-free/misc
 Priority: optional
 Architecture: armhf
-Maintainer: your namae <dev@your-app.com>
-Description: . futurehome app  
+Maintainer: Markus Haldorsen <markus@futurehome.no>
+Description: Mill-wifi adapter for futurehome system
