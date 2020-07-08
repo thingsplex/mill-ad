@@ -156,7 +156,7 @@ func (config *Config) NewClient(authCode string, password string, username strin
 	return accessToken, refreshToken, expireTime, refreshExpireTime
 }
 
-func (config *Config) RefreshToken(refreshToken string) (string, string, int64, int64) {
+func (config *Config) RefreshToken(refreshToken string) (string, string, int64, int64, error) {
 	url := fmt.Sprintf("%s%s", refreshURL, refreshToken)
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -166,7 +166,9 @@ func (config *Config) RefreshToken(refreshToken string) (string, string, int64, 
 	req.Header.Set("Accept", "*/*")
 
 	resp, err := http.DefaultClient.Do(req)
-	processHTTPResponse(resp, err, config)
+	if processHTTPResponse(resp, err, config) != nil {
+		return config.Data.AccessToken, config.Data.RefreshToken, config.Data.ExpireTime, config.Data.RefreshExpireTime, err
+	}
 
 	accessToken := config.Data.AccessToken
 	newRefreshToken := config.Data.RefreshToken
@@ -174,7 +176,7 @@ func (config *Config) RefreshToken(refreshToken string) (string, string, int64, 
 	refreshExpireTime := config.Data.RefreshExpireTime
 
 	defer resp.Body.Close()
-	return accessToken, newRefreshToken, expireTime, refreshExpireTime
+	return accessToken, newRefreshToken, expireTime, refreshExpireTime, nil
 }
 
 func (c *Client) GetAllDevices(accessToken string) ([]Device, []Room, []Home, []Device, error) {
@@ -357,7 +359,7 @@ func (cf *Config) GetAuthCode(oldMsg *fimpgo.Message) (string, string) {
 func processHTTPResponse(resp *http.Response, err error, holder interface{}) error {
 	if err != nil {
 		log.Error(fmt.Errorf("API does not respond"))
-		return fmt.Errorf("API does not respond")
+		return err
 	}
 	defer resp.Body.Close()
 	// check http return code

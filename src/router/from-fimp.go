@@ -78,7 +78,16 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 	if fc.configs.Auth.ExpireTime != 0 {
 		millis := time.Now().UnixNano() / 1000000
 		if millis > fc.configs.Auth.ExpireTime && millis < fc.configs.Auth.RefreshExpireTime {
-			fc.configs.Auth.AccessToken, fc.configs.Auth.RefreshToken, fc.configs.Auth.ExpireTime, fc.configs.Auth.RefreshExpireTime = config.RefreshToken(fc.configs.Auth.RefreshToken)
+			var err error
+			accessToken, refreshToken, expireTime, refreshExpireTime, err := config.RefreshToken(fc.configs.Auth.RefreshToken)
+			if err == nil {
+				fc.configs.Auth.AccessToken = accessToken
+				fc.configs.Auth.RefreshToken = refreshToken
+				fc.configs.Auth.ExpireTime = expireTime
+				fc.configs.Auth.RefreshExpireTime = refreshExpireTime
+			} else {
+				fc.configs.Auth.ExpireTime = 1
+			}
 			fc.states.SaveToFile()
 		} else if millis > fc.configs.Auth.RefreshExpireTime {
 			log.Error("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")

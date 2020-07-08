@@ -96,7 +96,19 @@ func main() {
 			if configs.Auth.ExpireTime != 0 {
 				millis := time.Now().UnixNano() / 1000000
 				if millis > configs.Auth.ExpireTime && millis < configs.Auth.RefreshExpireTime {
-					configs.Auth.AccessToken, configs.Auth.RefreshToken, configs.Auth.ExpireTime, configs.Auth.RefreshExpireTime = config.RefreshToken(configs.Auth.RefreshToken)
+					log.Debug("Trying to set new tokens")
+					accessToken, refreshToken, expireTime, refreshExpireTime, err := config.RefreshToken(configs.Auth.RefreshToken)
+					log.Debug(err)
+					if err == nil {
+						configs.Auth.AccessToken = accessToken
+						configs.Auth.RefreshToken = refreshToken
+						configs.Auth.ExpireTime = expireTime
+						configs.Auth.RefreshExpireTime = refreshExpireTime
+						appLifecycle.SetConnectionState(model.ConnStateConnected)
+					} else {
+						configs.Auth.ExpireTime = 1
+						appLifecycle.SetConnectionState(model.ConnStateDisconnected)
+					}
 					states.SaveToFile()
 				} else if millis > configs.Auth.RefreshExpireTime {
 					log.Error("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
