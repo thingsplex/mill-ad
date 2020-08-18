@@ -45,7 +45,7 @@ func (fc *FromFimpRouter) Start() {
 	// ------ Adapter topics ---------------------------------------------
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:dev/rn:%s/ad:1/#", model.ServiceName))
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:ad/rn:%s/ad:1", model.ServiceName))
-	fc.mqt.Subscribe("pt:j1/mt:cmd/rt:ad/rn:zigbee/ad:1")
+	// fc.mqt.Subscribe("pt:j1/mt:cmd/rt:ad/rn:zigbee/ad:1")
 	fc.mqt.Subscribe("pt:j1/mt:evt/rt:cloud/rn:auth-api/ad:1")
 
 	// ------ Application topic -------------------------------------------
@@ -518,9 +518,6 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		case "cmd.thing.inclusion":
 			//flag , _ := newMsg.Payload.GetBoolValue()
 			// TODO: This is an example . Add your logic here or remove
-		}
-	case "zigbee":
-		switch newMsg.Payload.Type {
 		case "cmd.thing.delete":
 			// remove device from network
 			val, err := newMsg.Payload.GetStrMapValue()
@@ -540,6 +537,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				log.Info("Device with deviceID: ", deviceID, " has been removed from network. It is still saved in adapter, so it can be reincluded by sending 'cmd.auth.set_tokens' or 'cmd.thing.get_inclusion_report'.")
 			}
 		}
+
 	case "auth-api":
 		fc.configs.Auth.AuthorizationCode, fc.configs.HubToken = config.GetAuthCode(newMsg)
 
