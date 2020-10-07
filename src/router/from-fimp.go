@@ -45,7 +45,6 @@ func (fc *FromFimpRouter) Start() {
 	// ------ Adapter topics ---------------------------------------------
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:dev/rn:%s/ad:1/#", model.ServiceName))
 	fc.mqt.Subscribe(fmt.Sprintf("pt:j1/+/rt:ad/rn:%s/ad:1", model.ServiceName))
-	// fc.mqt.Subscribe("pt:j1/mt:cmd/rt:ad/rn:zigbee/ad:1")
 	fc.mqt.Subscribe("pt:j1/mt:evt/rt:cloud/rn:auth-api/ad:1")
 
 	// ------ Application topic -------------------------------------------
