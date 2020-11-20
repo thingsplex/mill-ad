@@ -94,6 +94,7 @@ func main() {
 		ticker := time.NewTicker(time.Duration(PollTime) * time.Minute)
 		for ; true; <-ticker.C {
 			if configs.Auth.ExpireTime != 0 {
+				log.Debug("Checking expireTime")
 				millis := time.Now().UnixNano() / 1000000
 				if millis > configs.Auth.ExpireTime && millis < configs.Auth.RefreshExpireTime {
 					log.Debug("Trying to set new tokens")
@@ -110,8 +111,11 @@ func main() {
 						appLifecycle.SetConnectionState(model.ConnStateDisconnected)
 					}
 					states.SaveToFile()
+					configs.SaveToFile()
 				} else if millis > configs.Auth.RefreshExpireTime {
 					log.Error("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
+				} else {
+					log.Error("User needs to reloggin.")
 				}
 			}
 			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil

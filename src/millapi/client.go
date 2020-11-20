@@ -296,6 +296,9 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 
 	resp, err := http.DefaultClient.Do(req)
 	processHTTPResponse(resp, err, cf)
+	if err != nil {
+		log.Debug("Error in DeviceControl: ", err)
+	}
 	if cf.ErrorCode == 0 {
 		return true
 	}
