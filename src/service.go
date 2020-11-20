@@ -115,7 +115,7 @@ func main() {
 				} else if millis > configs.Auth.RefreshExpireTime {
 					log.Error("30 day refreshExpireTime has expired. Restard adapter or send cmd.auth.login")
 				} else {
-					log.Error("User needs to reloggin.")
+					log.Debug("expiretime is OK")
 				}
 			}
 			states.DeviceCollection, states.RoomCollection, states.HomeCollection, states.IndependentDeviceCollection = nil, nil, nil, nil
