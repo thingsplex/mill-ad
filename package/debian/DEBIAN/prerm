@@ -5,4 +5,5 @@ if [ -d /run/systemd/system ] && [ "$1" = remove ]; then
   deb-systemd-invoke stop mill.service >/dev/null
   systemctl disable mill.service || true
   rm /var/log/thingsplex/mill/* || true
+  rm /opt/thingsplex/mill/data/*  || true
 fi
