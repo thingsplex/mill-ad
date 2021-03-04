@@ -330,7 +330,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			for i := 0; i < len(fc.states.DeviceCollection); i++ {
 				inclReport := ns.SendInclusionReport(i, fc.states.DeviceCollection)
 
-				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, nil)
+				msg := fimpgo.NewMessage("evt.thing.inclusion_report", "mill", fimpgo.VTypeObject, inclReport, nil, nil, newMsg.Payload)
 				adr := fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
 				fc.mqt.Publish(&adr, msg)
 			}
@@ -531,9 +531,21 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 					"address": deviceID,
 				}
 				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
-				msg := fimpgo.NewMessage("evt.thing.exclusion_report", "mill", fimpgo.VTypeObject, val, nil, nil, nil)
+				msg := fimpgo.NewMessage("evt.thing.exclusion_report", "mill", fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
 				fc.mqt.Publish(adr, msg)
-				log.Info("Device with deviceID: ", deviceID, " has been removed from network. It is still saved in adapter, so it can be reincluded by sending 'cmd.auth.set_tokens' or 'cmd.thing.get_inclusion_report'.")
+				log.Info("Device with deviceID: ", deviceID, " has been removed from network.")
+			}
+
+		case "cmd.app.uninstall":
+			for i := 0; i < len(fc.states.DeviceCollection); i++ {
+				device := reflect.ValueOf(fc.states.DeviceCollection[i])
+				deviceID := strconv.FormatInt(device.FieldByName("DeviceID").Interface().(int64), 10)
+				val := map[string]interface{}{
+					"address": deviceID,
+				}
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeAdapter, ResourceName: "mill", ResourceAddress: "1"}
+				msg := fimpgo.NewMessage("evt.thing.exclusion_report", "mill", fimpgo.VTypeObject, val, nil, nil, newMsg.Payload)
+				fc.mqt.Publish(adr, msg)
 			}
 		}
 
