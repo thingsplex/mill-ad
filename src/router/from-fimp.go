@@ -124,9 +124,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
 				msg := fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
 				fc.mqt.Publish(adr, msg)
-			}
-
-			if !config.DeviceControl(fc.configs.Auth.AccessToken, deviceID, newTemp) {
+			} else {
 				log.Error("something went wrong when changing temperature")
 			}
 
@@ -335,11 +333,15 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.mqt.Publish(&adr, msg)
 			}
 
-			val2 := map[string]interface{}{
-				"errors":  nil,
-				"success": true,
+			val2 := model.ButtonActionResponse{
+				Operation:       "cmd.system.sync",
+				OperationStatus: "ok",
+				Next:            "reload",
+				ErrorCode:       "",
+				ErrorText:       "",
 			}
-			msg := fimpgo.NewMessage("evt.pd7.response", "vinculum", fimpgo.VTypeObject, val2, nil, nil, newMsg.Payload)
+
+			msg := fimpgo.NewMessage("evt.app.config_action_report", model.ServiceName, fimpgo.VTypeObject, val2, nil, nil, newMsg.Payload)
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				log.Error("Could not respond to wanted request")
 			}
