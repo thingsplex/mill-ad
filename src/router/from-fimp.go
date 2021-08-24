@@ -120,10 +120,11 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			newTemp := strconv.Itoa(newTempInt)
 			deviceID := addr
 
-			if config.DeviceControl(fc.configs.Auth.AccessToken, deviceID, newTemp) {
+			if config.TempControl(fc.configs.Auth.AccessToken, deviceID, newTemp) {
 				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
 				msg := fimpgo.NewMessage("evt.setpoint.report", "thermostat", fimpgo.VTypeStrMap, val, nil, nil, newMsg.Payload)
 				fc.mqt.Publish(adr, msg)
+				log.Info("Temperature setpoint updated, new setpoint ", newTemp)
 			} else {
 				log.Error("something went wrong when changing temperature")
 			}
@@ -150,6 +151,25 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			}
 
 		case "cmd.mode.set":
+			val, _ := newMsg.Payload.GetStringValue()
+			log.Debug("Trying to set new mode: ", val)
+
+			deviceIndex, err := fc.states.FindDeviceFromDeviceID(addr)
+			if err != nil {
+				log.Error(fmt.Errorf("Can't find device from deviceID, error: ", err))
+			}
+			device := reflect.ValueOf(fc.states.DeviceCollection[deviceIndex])
+			currentSetTemp := device.FieldByName("SetpointTemp").Interface().(int64)
+			log.Debug("setpointTemp: ", currentSetTemp)
+
+			if config.ModeControl(fc.configs.Auth.AccessToken, addr, currentSetTemp, val) {
+				adr := &fimpgo.Address{MsgType: fimpgo.MsgTypeEvt, ResourceType: fimpgo.ResourceTypeDevice, ResourceName: model.ServiceName, ResourceAddress: "1", ServiceName: "thermostat", ServiceAddress: addr}
+				msg := fimpgo.NewMessage("evt.mode.report", "thermostat", fimpgo.VTypeString, val, nil, nil, newMsg.Payload)
+				fc.mqt.Publish(adr, msg)
+				log.Info("Mode updated, new mode: ", val)
+			} else {
+				log.Error("Something went wrong when changing mode")
+			}
 			// Do we need this? Will/should allways be heat
 
 		case "cmd.mode.get_report":
@@ -224,7 +244,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 				fc.mqt.Publish(newadr, msg)
 			} else {
 				fc.appLifecycle.SetAuthState(model.AuthStateNotAuthenticated)
-				log.Debug("Login failed, please try again")
+				log.Info("Login failed, please try again")
 				loginval := map[string]interface{}{
 					"errors":  "Wrong username or password",
 					"success": false,
@@ -292,6 +312,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				log.Error("Could not respond to wanted request")
 			}
+			log.Info("Logged out and deleted all devices.")
 
 		case "cmd.network.get_all_nodes":
 			// This case saves all homes, rooms and devices, but only sends devices back to fimp.
@@ -345,6 +366,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			if err := fc.mqt.RespondToRequest(newMsg.Payload, msg); err != nil {
 				log.Error("Could not respond to wanted request")
 			}
+			log.Info("All devices synced")
 
 		case "cmd.system.set_poll_time":
 			log.Debug("pollTime case")
@@ -437,7 +459,7 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 			} else {
 				fc.configs.PollTimeMin = pollTimeMin
 				fc.configs.SaveToFile()
-				log.Debug("App reconfigured.")
+				log.Info("App reconfigured, new configs: ", fc.configs)
 				// TODO: This is an example . Add your logic here or remove
 			}
 

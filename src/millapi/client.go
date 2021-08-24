@@ -284,7 +284,7 @@ func (c *Client) GetIndependentDevices(accessToken string, homeId int64) (*Clien
 	return c, nil
 }
 
-func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp string) bool {
+func (cf *Config) TempControl(accessToken string, deviceId string, newTemp string) bool {
 	url := fmt.Sprintf("%s%s%s%s%s%s", deviceControlURL, "?deviceId=", deviceId, "&holdTemp=", newTemp, "&operation=1&status=1")
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -299,6 +299,38 @@ func (cf *Config) DeviceControl(accessToken string, deviceId string, newTemp str
 	if err != nil {
 		log.Debug("Error in DeviceControl: ", err)
 	}
+	log.Debug("url: ", url)
+	if cf.ErrorCode == 0 {
+		return true
+	}
+	return false
+}
+
+func (cf *Config) ModeControl(accessToken string, deviceId string, oldTemp int64, newMode string) bool {
+	var mode int
+	if newMode == "heat" {
+		mode = 1
+	} else if newMode == "off" {
+		mode = 0
+	} else {
+		log.Info("Unsupported mode: ", newMode)
+		return false
+	}
+	url := fmt.Sprintf("%s%s%s%s%d%s%d", deviceControlURL, "?deviceId=", deviceId, "&holdTemp=", oldTemp, "&operation=0&status=", mode)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		// handle err
+		log.Error(fmt.Errorf("Can't controll device, error: ", err))
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Access_token", accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	processHTTPResponse(resp, err, cf)
+	if err != nil {
+		log.Debug("Error in DeviceControl: ", err)
+	}
+
 	if cf.ErrorCode == 0 {
 		return true
 	}
