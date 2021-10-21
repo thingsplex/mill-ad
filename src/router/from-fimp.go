@@ -107,17 +107,25 @@ func (fc *FromFimpRouter) routeFimpMessage(newMsg *fimpgo.Message) {
 		switch newMsg.Payload.Type {
 		case "cmd.setpoint.set":
 			val, _ := newMsg.Payload.GetStrMapValue()
-			valTemp := strings.Split(val["temp"], ".")
-			newTempInt, err := strconv.Atoi(valTemp[0])
-			halfTemp, err := strconv.Atoi(valTemp[1])
-			if err != nil {
-				// handle err
-				log.Error(fmt.Errorf("Can't convert to string, error: ", err))
+			var newTempInt int
+			var halfTemp int
+			var err error
+			var newTemp string
+			if strings.Contains(val["temp"], ".") {
+				valTemp := strings.Split(val["temp"], ".")
+				newTempInt, err = strconv.Atoi(valTemp[0])
+				halfTemp, err = strconv.Atoi(valTemp[1])
+				if err != nil {
+					// handle err
+					log.Error(fmt.Errorf("Can't convert to string, error: ", err))
+				}
+				if halfTemp > 0 {
+					newTempInt++
+				}
+				newTemp = strconv.Itoa(newTempInt)
+			} else {
+				newTemp = val["temp"]
 			}
-			if halfTemp > 0 {
-				newTempInt++
-			}
-			newTemp := strconv.Itoa(newTempInt)
 			deviceID := addr
 
 			if config.TempControl(fc.configs.Auth.AccessToken, deviceID, newTemp) {
